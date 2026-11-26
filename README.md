@@ -6,7 +6,7 @@
 [![GIFT-Eval](https://img.shields.io/badge/GIFT--Eval-0.6522%20MASE%20%2F%200.4422%20CRPS-4f46e5)](https://huggingface.co/spaces/Salesforce/GIFT-Eval)
 [![fev-bench](https://img.shields.io/badge/fev--bench-50.18%25%20SQL%20%2F%2080.2%25%20Win-10b981)](https://huggingface.co/spaces/autogluon/fev-bench)
 
-**Zitra v3 (`Zitra-Titan-v3`)** is the **#1 fully open-source (Pure Apache-2.0) zero-shot time-series foundation model** across both **Official GIFT-Eval (97 configs)** and **`fev-bench` (100 tasks)** — with **zero benchmark overlap** (`trained_on_benchmark_datasets = []`), **built-in public holidays for 240+ countries**, and a single **`2.12 GB`** checkpoint (**`3.46 GB`** VRAM, fits any 6–8 GB consumer GPU).
+**Zitra v3 (`Zitra-Titan-v3`)** is the **#1 fully open-source (Pure Apache-2.0) zero-shot time-series foundation model** across both **Official GIFT-Eval (97 configs)** and **`fev-bench` (100 tasks)** — with **zero benchmark overlap**, **built-in public holidays for 240+ countries**, and a single **`2.12 GB`** checkpoint (**`3.46 GB`** VRAM, fits any 6–8 GB consumer GPU).
 
 ![Zitra v3 Benchmarks on GIFT-Eval and fev-bench](assets/pareto_gift_fev.png)
 
@@ -89,4 +89,4 @@ pred_df = model.predict_df(
 
 Try **Zitra v3** live on [Hugging Face Spaces (`tomcupr/zitra-v3-demo`)](https://huggingface.co/spaces/tomcupr/zitra-v3-demo), or run locally with `pip install "zitra-forecast[demo] @ git+https://github.com/tomascupr/zitra-forecast.git" && python hf-space/app.py`.
 
-**Apache License, Version 2.0** — 100% commercially permissive with zero notification, branding, or output-use restrictions. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+**Apache License, Version 2.0** — 100% free for commercial and research use. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

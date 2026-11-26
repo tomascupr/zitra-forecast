@@ -55,7 +55,7 @@ model-index:
 
 # ⚡ Zitra-Titan-v3
 
-**#1 Fully Open (Apache-2.0) Zero-Shot Time-Series Foundation Model** across both **Official GIFT-Eval (97 configs)** and **`fev-bench` (100 tasks)** — with **zero benchmark overlap** (`trained_on_benchmark_datasets = []`) and zero non-commercial, vendor-notification, or output-use restrictions.
+**#1 Fully Open (Apache-2.0) Zero-Shot Time-Series Foundation Model** across both **Official GIFT-Eval (97 configs)** and **`fev-bench` (100 tasks)** — with **zero benchmark overlap**.
 
 **2.12 GB single file** · **3.46 GB GPU VRAM** *(any 6–8 GB GPU)* · **122 ms latency** *(B300)* · **Built-in public holidays for 240+ countries**
 
@@ -181,4 +181,4 @@ Zitra-Titan-v3 unifies **four genuinely orthogonal Apache-2.0 foundation archite
 
 ## License
 
-**Apache License, Version 2.0** — 100% commercially permissive with zero notification, branding, or output-use restrictions. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE) for full attributions.
+**Apache License, Version 2.0** — 100% free for commercial and research use. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE) for full attributions.
