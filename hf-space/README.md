@@ -10,7 +10,7 @@ app_file: app.py
 suggested_hardware: zero-a10g
 pinned: true
 license: apache-2.0
-short_description: 100% Apache-2.0 4-architecture TSFM with built-in public holidays
+short_description: Apache-2.0 4-arch TSFM with built-in public holidays
 ---
 
 # ⚡ Zitra v3 Interactive Demo (100% Apache-2.0)
