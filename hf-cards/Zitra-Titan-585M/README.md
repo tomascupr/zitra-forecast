@@ -70,8 +70,8 @@ Most forecasting models force every series — whether it's hourly solar generat
    - **`Zitra-209M-v2` (209.3M):** Our 5-seed, 24-layer FullLoRA model soup algebraically folded into `Timestral-209M` (cross-variate + time RoPE decoder, up to 32,768 context).
    - **`t0-gamma` (255.6M, Apache-2.0):** Patch-decoder specialist configured with its full official `a2` inference settings (`trim_leading_missing`, symmetric averaging, nonnegativity, integer snapping, 8,192 context).
    - **`Chronos-2` (119.5M, Apache-2.0):** Encoder-only foundation prior with native multivariate and dynamic past/future covariate support.
-2. **Test-Time Causal Pop-Quiz Routing (Zero Router Overfitting):**
-   - Before predicting the future, `Zitra-Titan-585M` runs two covariate-preserving causal rolling backtests on the recent history of each series, shrinking relative log-losses by exact effective backtest sample size `n_eff / (n_eff + κ)` and cross-cutoff sign consistency to form an unclamped Bayesian posterior `w ∈ Δ³`.
+2. **Fused-Batch Causal Test-Time Pop-Quiz Routing (`99 ms` on B300 — Zero Router Overfitting):**
+   - Before predicting the future, `Zitra-Titan-585M` runs two covariate-preserving causal rolling backtests on the recent history of each series — fused into right-aligned batched GPU passes (`2.7×` faster than sequential replay, **`99 ms` / `3.6×` stock latency on B300** with verified zero benchmark drift) — shrinking relative log-losses by exact effective backtest sample size `n_eff / (n_eff + κ)` and cross-cutoff sign consistency to form an unclamped Bayesian posterior `w ∈ Δ³`.
 3. **Exact Piecewise-Linear Mixture-CDF Inversion:**
    - Instead of naively averaging quantiles (Vincentization, which has an unbounded outlier influence function), `Zitra-Titan-585M` constructs the exact linear-pool cumulative distribution `F_mix(y) = Σ w_e F_e(y)` and inverts it at every decile. This gives **bounded influence against outlier hallucinations** (20× safer under simultaneous multi-expert failure) and **automatic epistemic uncertainty widening** when experts disagree.
 
@@ -106,9 +106,9 @@ Zero GIFT-Eval or fev-bench datasets were used during post-training or model sel
 
 | Model | Params | B300 Latency | Best For |
 |---|---:|---:|---|
-| **[Zitra-Titan-585M](https://huggingface.co/tomcupr/Zitra-Titan-585M)** | 584.4M | 251 ms (`9.7×`) | **Maximum overall accuracy & calibrated quantiles across all domains** |
-| **[Zitra-Apex-585M](https://huggingface.co/tomcupr/Zitra-Apex-585M)** | 584.5M | 84 ms (`3.2×`) | **Fast multi-prior retail / business forecasting with rich covariates** |
-| **[Zitra-209M-v2](https://huggingface.co/tomcupr/Zitra-209M-v2)** | 209.3M | 26 ms (`1.0×`) | **Zero-overhead drop-in upgrade to stock Timestral-209M** |
+| **[Zitra-Titan-585M](https://huggingface.co/tomcupr/Zitra-Titan-585M)** | 584.4M | **99 ms (`3.6×`)** | **Maximum overall accuracy & calibrated quantiles across all domains** |
+| **[Zitra-Apex-585M](https://huggingface.co/tomcupr/Zitra-Apex-585M)** | 584.5M | 90 ms (`3.2×`) | **Fast single-pass multi-prior retail / business forecasting with rich covariates** |
+| **[Zitra-209M-v2](https://huggingface.co/tomcupr/Zitra-209M-v2)** | 209.3M | **28 ms (`1.0×`)** | **Zero-overhead drop-in upgrade to stock Timestral-209M** |
 
 ---
 

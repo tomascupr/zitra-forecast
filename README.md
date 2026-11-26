@@ -15,10 +15,10 @@
 
 | Model | Params | B300 Latency | GIFT-Eval (MASE / CRPS ↓) | fev-bench Skill (MASE / SQL / WQL ↑) | Best For |
 |---|---:|---:|---:|---:|---|
-| **[Zitra-Titan-585M](https://huggingface.co/tomcupr/Zitra-Titan-585M)** | 584.4M | 251 ms (`9.7×`) | **`0.6443 / 0.4352`** | `39.71` / **`50.61 / 54.95`** | **Flagship — highest accuracy & calibration everywhere** |
-| **[Zitra-Apex-585M](https://huggingface.co/tomcupr/Zitra-Apex-585M)** | 584.5M | 84 ms (`3.2×`) | `0.6569 / 0.4469` | **`39.85`** / `50.55 / 54.94` | **Fast 3-prior specialist for covariates, retail & hourly ops** |
-| **[Zitra-209M-v2](https://huggingface.co/tomcupr/Zitra-209M-v2)** | 209.3M | **26 ms (`1.0×`)** | `0.6578 / 0.4451` | `39.56 / 50.45 / 54.81` | **Exact 209M zero-overhead drop-in upgrade to Timestral-209M** |
-| *Timestral-209M (baseline)* | *209.3M* | *26 ms (`1.0×`)* | *0.6575 / 0.4460* | *39.49 / 50.39 / 54.63* | *Reference baseline* |
+| **[Zitra-Titan-585M](https://huggingface.co/tomcupr/Zitra-Titan-585M)** | 584.4M | **99 ms (`3.6×`)** | **`0.6443 / 0.4352`** | `39.71` / **`50.61 / 54.95`** | **Flagship — highest accuracy & calibration everywhere** |
+| **[Zitra-Apex-585M](https://huggingface.co/tomcupr/Zitra-Apex-585M)** | 584.5M | 90 ms (`3.2×`) | `0.6569 / 0.4469` | **`39.85`** / `50.55 / 54.94` | **Fast single-pass 3-prior specialist for covariates, retail & hourly ops** |
+| **[Zitra-209M-v2](https://huggingface.co/tomcupr/Zitra-209M-v2)** | 209.3M | **28 ms (`1.0×`)** | `0.6578 / 0.4451` | `39.56 / 50.45 / 54.81` | **Exact 209M zero-overhead drop-in upgrade to Timestral-209M** |
+| *Timestral-209M (baseline)* | *209.3M* | *28 ms (`1.0×`)* | *0.6575 / 0.4460* | *39.49 / 50.39 / 54.63* | *Reference baseline* |
 
 ---
 
@@ -64,7 +64,7 @@ pred_df = model.predict_df(
 ## Key Engineering Breakthroughs
 
 1. **Algebraically Folded 24-Layer FullLoRA Soup (`Zitra-209M-v2`):** Five full-depth rank-16 LoRA runs (`wQKV`, `wO`, `mlp.w3`) averaged into a variance-reduced model soup and algebraically folded directly back into exact stock `TimestralModel` matrices (`max_abs_diff = 2.15e-6`) — **exact `1.003×` stock latency**.
-2. **Causal Test-Time Pop-Quiz Routing (`Zitra-Titan-585M`):** Runs two covariate-preserving rolling historical backtests across three orthogonal foundation priors (`Zitra-209M-v2`, `t0-gamma` with full official `a2` flags, and `Chronos-2`), forming an unclamped Bayesian posterior shrunk by exact effective backtest sample size `n_eff / (n_eff + κ)` with **zero learned router weights**.
+2. **Causal Test-Time Pop-Quiz Routing with Fused-Batch Execution (`Zitra-Titan-585M`):** Runs two covariate-preserving rolling historical backtests across three orthogonal foundation priors (`Zitra-209M-v2`, `t0-gamma` with full official `a2` flags, and `Chronos-2`), packing `[main, bt0, bt1]` into a single right-aligned GPU forward pass (`2.7×` faster — `99 ms` on B300 with zero benchmark drift!) and forming an unclamped Bayesian posterior shrunk by exact effective backtest sample size `n_eff / (n_eff + κ)` with **zero learned router weights**.
 3. **Exact Linear-Pool Mixture-CDF Inversion:** Inverts `F_mix(y) = Σ w_e F_e(y)` at every decile — guaranteeing a bounded influence function against minority-expert hallucinations and automatic epistemic uncertainty widening when experts disagree.
 
 ## Real-World Retail & Fulfillment Proof (Rohlik, 100% Zero-Shot)

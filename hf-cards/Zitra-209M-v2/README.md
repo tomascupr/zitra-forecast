@@ -83,9 +83,9 @@ license: other
 
 | Model | Params | B300 Latency | Best For |
 |---|---:|---:|---|
-| **[Zitra-Titan-585M](https://huggingface.co/tomcupr/Zitra-Titan-585M)** | 584.4M | 251 ms (`9.7×`) | **Maximum overall accuracy (`0.6443 / 0.4352` GIFT-Eval)** |
-| **[Zitra-Apex-585M](https://huggingface.co/tomcupr/Zitra-Apex-585M)** | 584.5M | 84 ms (`3.2×`) | **Fast 3-prior retail & covariate forecasting** |
-| **[Zitra-209M-v2](https://huggingface.co/tomcupr/Zitra-209M-v2)** | 209.3M | 26 ms (`1.0×`) | **Zero-cost drop-in upgrade to Timestral-209M** |
+| **[Zitra-Titan-585M](https://huggingface.co/tomcupr/Zitra-Titan-585M)** | 584.4M | **99 ms (`3.6×`)** | **Maximum overall accuracy (`0.6443 / 0.4352` GIFT-Eval)** |
+| **[Zitra-Apex-585M](https://huggingface.co/tomcupr/Zitra-Apex-585M)** | 584.5M | 90 ms (`3.2×`) | **Fast single-pass 3-prior retail & covariate forecasting** |
+| **[Zitra-209M-v2](https://huggingface.co/tomcupr/Zitra-209M-v2)** | 209.3M | **28 ms (`1.0×`)** | **Zero-cost drop-in upgrade to Timestral-209M** |
 
 ---
 

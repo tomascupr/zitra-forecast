@@ -54,7 +54,7 @@ license: other
 
 # ⚡ Zitra-Apex-585M
 
-**Zitra-Apex-585M** is the fast, single-pass multi-prior specialist of the **Zitra v2** family — delivering the **#1 MASE skill score (`39.85`) on [fev-bench](https://huggingface.co/spaces/autogluon/fev-bench)**, a statistically significant **`−0.85%` equal-source MASE reduction** over Timestral-209M (95% CI `[−1.69%, −0.08%]`), and massive wins on **covariate-rich business & retail forecasting (`−1.66% MASE / −2.05% WQL`)** — all in **84 ms** on GPU (**3× faster than Zitra-Titan-585M**).
+**Zitra-Apex-585M** is the fast, single-pass multi-prior specialist of the **Zitra v2** family — delivering the **#1 MASE skill score (`39.85`) on [fev-bench](https://huggingface.co/spaces/autogluon/fev-bench)**, a statistically significant **`−0.85%` equal-source MASE reduction** over Timestral-209M (95% CI `[−1.69%, −0.08%]`), and massive wins on **covariate-rich business & retail forecasting (`−1.66% MASE / −2.05% WQL`)** — all in a single `90 ms` GPU forward pass with zero test-time replay overhead.
 
 **Zitra v2 Family:** [**Collection**](https://huggingface.co/collections/tomcupr/zitra-v2-time-series-foundation-models-6b07f1ff7bd52f98a455d847) · [**Zitra-Titan-585M** (Flagship Adaptive)](https://huggingface.co/tomcupr/Zitra-Titan-585M) · [**Zitra-Apex-585M** (Fast Covariate Specialist)](https://huggingface.co/tomcupr/Zitra-Apex-585M) · [**Zitra-209M-v2** (1.00× Speed Drop-In)](https://huggingface.co/tomcupr/Zitra-209M-v2) · [**Interactive Live Demo Space**](https://huggingface.co/spaces/tomcupr/zitra-v2-demo)
 
@@ -95,9 +95,9 @@ license: other
 
 | Model | Params | B300 Latency | Best For |
 |---|---:|---:|---|
-| **[Zitra-Titan-585M](https://huggingface.co/tomcupr/Zitra-Titan-585M)** | 584.4M | 251 ms (`9.7×`) | **Best overall accuracy across GIFT-Eval (`0.6443 / 0.4352`) & fev-bench** |
-| **[Zitra-Apex-585M](https://huggingface.co/tomcupr/Zitra-Apex-585M)** | 584.5M | 84 ms (`3.2×`) | **Fastest 3-prior model; #1 on covariates, retail & hourly ops** |
-| **[Zitra-209M-v2](https://huggingface.co/tomcupr/Zitra-209M-v2)** | 209.3M | 26 ms (`1.0×`) | **Zero-overhead drop-in upgrade to Timestral-209M** |
+| **[Zitra-Titan-585M](https://huggingface.co/tomcupr/Zitra-Titan-585M)** | 584.4M | **99 ms (`3.6×`)** | **Best overall accuracy across GIFT-Eval (`0.6443 / 0.4352`) & fev-bench** |
+| **[Zitra-Apex-585M](https://huggingface.co/tomcupr/Zitra-Apex-585M)** | 584.5M | 90 ms (`3.2×`) | **Fast single-pass 3-prior model; #1 on covariates, retail & hourly ops** |
+| **[Zitra-209M-v2](https://huggingface.co/tomcupr/Zitra-209M-v2)** | 209.3M | **28 ms (`1.0×`)** | **Zero-overhead drop-in upgrade to Timestral-209M** |
 
 ---
 
