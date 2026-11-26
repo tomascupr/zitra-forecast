@@ -102,36 +102,36 @@ pred_df = model.predict_df(
 
 Every number below comes from this single frozen checkpoint with strictly causal evaluation and zero test-data leakage (`0.0%` `fev-bench` overlap).
 
-### Official `fev-bench` (Accuracy & Speed · higher skill ↑, lower time ↓)
+### Official `fev-bench` (higher skill ↑ · lower runtime ↓)
 
-| Rank | Model | License | SQL Win ↑ | SQL Skill ↑ | MASE Skill ↑ | Total Runtime ↓ | Speedup |
-|---:|---|---|---:|---:|---:|---:|---:|
-| #6 | [⚡ Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3) *(1.06B)* | Apache-2.0 | 79.7% | 50.18% | 39.05% | 6,764 s | 3.7× slower |
-| #7 | Timestral-209M | *Non-Commercial* | 78.8% | 50.39% | 39.49% | 3,827 s | 2.1× slower |
-| **#11** | **⚡ Zitra-Core-v3** *(256M)* | **Apache-2.0** | **75.5%** | **49.69%** | **38.39%** | **1,807 s** | **1.0× (baseline)** |
-| #13 | t0-gamma *(256M)* | Apache-2.0 | 72.9% | 49.42% | 37.99% | 15,862 s | **8.8× slower** |
-| #18 | TimesFM-3 | *Non-Commercial* | 66.9% | 48.99% | 37.82% | 8,673 s | **4.8× slower** |
-| #22 | iAmTime *(302M)* | Apache-2.0 | 60.5% | 46.78% | 35.36% | 599 s | 3.0× faster |
-| #24 | Chronos-2 *(120M)* | Apache-2.0 | 56.9% | 47.28% | 35.50% | 2,738 s | **1.5× slower** |
-| #25 | Toto-2.0-2.5B *(2.5B)* | Apache-2.0 | 55.9% | 44.42% | 32.54% | 13,835 s | **7.7× slower** |
+| # | Model | License | Win Rate ↑ | SQL ↑ | Runtime ↓ |
+|---:|---|---|---:|---:|---:|
+| 6 | [Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3) | Apache-2.0 | 79.7% | 50.18% | 6,764 s *(3.7×)* |
+| 7 | Timestral-209M | Non-Comm. | 78.8% | 50.39% | 3,827 s *(2.1×)* |
+| **11** | **⚡ Zitra-Core-v3** | **Apache-2.0** | **75.5%** | **49.69%** | **1,807 s (1.0×)** |
+| 13 | t0-gamma | Apache-2.0 | 72.9% | 49.42% | 15,862 s *(8.8×)* |
+| 18 | TimesFM-3 | Non-Comm. | 66.9% | 48.99% | 8,673 s *(4.8×)* |
+| 22 | iAmTime | Apache-2.0 | 60.5% | 46.78% | 599 s *(0.3×)* |
+| 24 | Chronos-2 | Apache-2.0 | 56.9% | 47.28% | 2,738 s *(1.5×)* |
+| 25 | Toto-2.0-2.5B | Apache-2.0 | 55.9% | 44.42% | 13,835 s *(7.7×)* |
 
-*Evaluated across all 100 tasks (`53.76%` WQL skill, `73.5%` MASE win rate — #11 / 56 models on both SQL and MASE win rate). Beats stock `t0-gamma` on **63 / 100** tasks at **8.8×** higher throughput (`4.91 s` vs. `16.25 s` median). The only Apache-2.0 model ranked higher is our own `Zitra-Titan-v3`.*
+*Ranks #11 / 56 models on both SQL win rate (75.5%) and MASE win rate (73.5%), with 53.76% WQL skill and 38.39% MASE skill. Beats `t0-gamma` on **63 / 100** tasks at **8.8×** throughput (`4.91 s` vs. `16.25 s` median). Only our own `Zitra-Titan-v3` ranks higher among Apache-2.0 models.*
 
 ### Official GIFT-Eval (lower is better ↓)
 
-| Model | License | MASE ↓ | CRPS ↓ | Core-v3 Gain (MASE / CRPS) |
+| Model | License | MASE ↓ | CRPS ↓ | Core-v3 vs. Model |
 |---|---|---:|---:|---:|
-| [⚡ Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3) *(1.06B)* | Apache-2.0 | 0.6522 | 0.4422 | +0.44% / +1.15% |
-| **⚡ Zitra-Core-v3** *(256M)* | **Apache-2.0** | **0.6551** | **0.4473** | — |
-| Timestral-209M | *Non-Commercial* | 0.6575 | 0.4460 | **−0.38%** / +0.29% |
-| Timestral-123M | *Non-Commercial* | 0.6589 | 0.4476 | **−0.58% / −0.07%** |
-| t0-gamma *(256M)* | Apache-2.0 | 0.6608 | 0.4520 | **−0.87% / −1.04%** |
-| TimesFM-3 | *Non-Commercial* | 0.6668 | 0.4557 | **−1.76% / −1.84%** |
-| iAmTime *(302M)* | Apache-2.0 | 0.6795 | 0.4647 | **−3.60% / −3.74%** |
-| Toto-2.0-2.5B *(2.5B)* | Apache-2.0 | 0.6956 | 0.4759 | **−5.83% / −6.01%** |
-| Chronos-2 *(120M)* | Apache-2.0 | 0.6978 | 0.4854 | **−6.13% / −7.85%** |
+| [Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3) | Apache-2.0 | 0.6522 | 0.4422 | +0.4% / +1.2% |
+| **⚡ Zitra-Core-v3** | **Apache-2.0** | **0.6551** | **0.4473** | — |
+| Timestral-209M | Non-Comm. | 0.6575 | 0.4460 | **−0.4%** / +0.3% |
+| Timestral-123M | Non-Comm. | 0.6589 | 0.4476 | **−0.6% / −0.1%** |
+| t0-gamma | Apache-2.0 | 0.6608 | 0.4520 | **−0.9% / −1.0%** |
+| TimesFM-3 | Non-Comm. | 0.6668 | 0.4557 | **−1.8% / −1.8%** |
+| iAmTime | Apache-2.0 | 0.6795 | 0.4647 | **−3.6% / −3.7%** |
+| Toto-2.0-2.5B | Apache-2.0 | 0.6956 | 0.4759 | **−5.8% / −6.0%** |
+| Chronos-2 | Apache-2.0 | 0.6978 | 0.4854 | **−6.1% / −7.9%** |
 
-*Evaluated across all 97 configs. Outperforms every third-party Apache-2.0 model of any size (including 10× larger `Toto-2.0-2.5B`), beats `Timestral-123M` on both metrics, and beats `Timestral-209M` on MASE (`−0.93% MASE / −0.06% CRPS` ex-Jena).*
+*Outperforms every third-party Apache-2.0 model of any size (including 10× larger `Toto-2.0-2.5B`), beats `Timestral-123M` on both metrics, and beats `Timestral-209M` on MASE (`−0.93% MASE / −0.06% CRPS` ex-Jena).*
 
 <details>
 <summary><b>Real-world enterprise throughput &amp; raw CSVs (Rohlik · 100% Zero-Shot)</b></summary>
@@ -148,14 +148,16 @@ Every number below comes from this single frozen checkpoint with strictly causal
 
 Measured directly on **NVIDIA B300 GPU** and **8 CPU threads (Intel Xeon 6776P, `fp32`, no GPU)**:
 
-| Metric | ⚡ Zitra-Core-v3 *(256M)* | ⚡ Zitra-Titan-v3 *(1.06B)* | Core-v3 Advantage |
-|---|---:|---:|---|
-| **B300 GPU (Standard / `fast=True`)** | **17.5 ms / 15.9 ms** | 122 ms / 115 ms | **7.0× faster** |
-| **B300 GPU (Known Covariates)** | **35.6 ms** | 174 ms | **4.9× faster** |
-| **8-Core CPU (Standard / `fast=True`)** | **87 ms / 69 ms** | 952 ms / 567 ms | **11× faster** *(faster than Titan on GPU!)* |
-| **CPU Cold Load Time** | **1.8 s** | 9.8 s | **5.4× faster** |
-| **GPU VRAM / CPU RAM** | **1.07 GB / ~1.2 GB** | 3.46 GB / ~4.3 GB | **3.2–3.6× smaller** |
-| **Batch SKU Throughput (B300)** | **1,265 SKUs/sec** | 75 SKUs/sec | **16.8× higher** |
+| Benchmark | Zitra-Core-v3 | Zitra-Titan-v3 | Speedup |
+|---|---:|---:|---:|
+| GPU Latency *(B300)* | **17.5 ms** | 122 ms | **7.0×** |
+| GPU Latency *(Known Covariates)* | **35.6 ms** | 174 ms | **4.9×** |
+| CPU Latency *(8 cores)* | **87 ms** | 952 ms | **11×** |
+| CPU Cold Load | **1.8 s** | 9.8 s | **5.4×** |
+| GPU VRAM / CPU RAM | **1.1 / 1.2 GB** | 3.5 / 4.3 GB | **3.3× smaller** |
+| Batch Throughput *(B300)* | **1,265 SKUs/s** | 75 SKUs/s | **16.8×** |
+
+*`fast=True` trims single-series latency further to **15.9 ms** GPU and **69 ms** CPU. At **87 ms** on CPU, `Zitra-Core-v3` runs faster on CPU than `Zitra-Titan-v3` runs on GPU.*
 
 - **Choose `Zitra-Core-v3`** for CPU-only / serverless / edge deployments, high-volume 100K–1M SKU pipelines, and latency-critical real-time serving.
 - **Choose [`Zitra-Titan-v3`](https://huggingface.co/tomcupr/Zitra-Titan-v3)** for maximum accuracy on high-stakes capacity, energy, and public-holiday planning where 4-architecture Pop-Quiz routing gives the final edge.
