@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zitra-forecast"
+version = "0.2.0"
+description = "Zitra v2: State-of-the-art probabilistic time-series foundation models (Zitra-Titan-585M, Zitra-Apex-585M, Zitra-209M-v2)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Modified MIT + Apache-2.0 components"}
+keywords = ["time-series", "forecasting", "foundation-model", "probabilistic-forecasting", "pytorch"]
+dependencies = [
+    "torch>=2.4.0",
+    "numpy>=1.26.0",
+    "pandas>=2.1.0",
+    "safetensors>=0.4.3",
+    "huggingface-hub>=0.25.0",
+    "timestral @ git+https://github.com/mistralai/timestral.git",
+]
+
+[project.optional-dependencies]
+multi-prior = [
+    "tfc-t0[torch]>=0.6.1",
+    "chronos-forecasting>=2.0.0",
+]
+all = [
+    "tfc-t0[torch]>=0.6.1",
+    "chronos-forecasting>=2.0.0",
+]
+demo = [
+    "tfc-t0[torch]>=0.6.1",
+    "chronos-forecasting>=2.0.0",
+    "gradio>=5.0.0",
+    "plotly>=5.22.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["zitra*"]
