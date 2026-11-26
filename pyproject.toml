@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zitra-forecast"
-version = "0.3.0"
-description = "Zitra v3: 100% Apache-2.0 Test-Time Adaptive Probabilistic Time-Series Foundation Model with Built-In Public Holiday Covariates."
+version = "0.3.1"
+description = "Zitra v3: 100% Apache-2.0 Probabilistic Time-Series Foundation Models (Zitra-Titan-v3 & Zitra-Core-v3) with Built-In Public Holiday Covariates."
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}

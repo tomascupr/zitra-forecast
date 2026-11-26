@@ -1,5 +1,6 @@
 """Unified dead-simple user interface for Zitra v3 (100% Pure Apache-2.0):
-  - Zitra-Titan-v3 (Flagship 4-architecture 16K test-time adaptive forecaster)
+  - Zitra-Titan-v3 (Flagship 1.06B 4-architecture 16K test-time adaptive forecaster)
+  - Zitra-Core-v3  (Compact 256M fast distilled forecaster — 17.5 ms GPU / 87 ms CPU)
 """
 
 from __future__ import annotations
@@ -61,12 +62,18 @@ def _resolve_checkpoint_dir(repo_id_or_path: str | Path, revision: str | None = 
 def _detect_variant(ckpt_dir: Path) -> str:
     if (ckpt_dir / "patchtst_config.json").exists() or (ckpt_dir / "zitra_v3_forecaster.py").exists():
         return "titan_v3"
+    if (ckpt_dir / "zitra_core_v3_forecaster.py").exists():
+        return "core_v3"
     frozen_p = ckpt_dir / "frozen.json"
     if frozen_p.exists():
         meta = json.loads(frozen_p.read_text())
         name = str(meta.get("model", meta.get("name", ""))).lower()
+        if "core" in name:
+            return "core_v3"
         if "v3" in name or "titan" in name:
             return "titan_v3"
+    if (ckpt_dir / "t0_config.json").exists() and not (ckpt_dir / "chronos_config.json").exists():
+        return "core_v3"
     raise ValueError(f"Unrecognized Zitra v3 checkpoint directory: {ckpt_dir}")
 
 
@@ -107,6 +114,10 @@ class ZitraForecaster:
             from .backends.titan_v3 import ZitraV3Forecaster
 
             backend = ZitraV3Forecaster.from_pretrained(ckpt_dir, device=device)
+        elif variant == "core_v3":
+            from .backends.core_v3 import ZitraCoreV3Forecaster
+
+            backend = ZitraCoreV3Forecaster.from_pretrained(ckpt_dir, device=device)
         else:
             raise ValueError(f"Unsupported Zitra variant: {variant}")
 
@@ -146,9 +157,9 @@ class ZitraForecaster:
             kwargs["categorical_past_covariates"] = categorical_past_covariates
         if categorical_known_covariates is not None:
             kwargs["categorical_known_covariates"] = categorical_known_covariates
-        if cross_learning is not None and self.variant == "titan_v3":
+        if cross_learning is not None and self.variant in ("titan_v3", "core_v3"):
             kwargs["cross_learning"] = cross_learning
-        if fast and self.variant == "titan_v3":
+        if fast and self.variant in ("titan_v3", "core_v3"):
             kwargs["fast"] = True
 
         out = self.backend.forecast(arr, prediction_length=int(prediction_length), **kwargs)

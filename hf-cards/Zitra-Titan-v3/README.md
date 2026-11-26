@@ -59,7 +59,7 @@ model-index:
 
 **2.12 GB single file** · **3.46 GB GPU VRAM** *(any 6–8 GB GPU)* · **122 ms latency** *(B300)* · **Built-in public holidays for 240+ countries**
 
-[**Live Demo Space**](https://huggingface.co/spaces/tomcupr/zitra-v3-demo) · [**GitHub SDK (`zitra-forecast`)**](https://github.com/tomascupr/zitra-forecast) · [**GIFT-Eval CSV**](gift_eval_results.csv) · [**fev-bench CSV**](fev_bench_results.csv)
+[**Live Demo Space**](https://huggingface.co/spaces/tomcupr/zitra-v3-demo) · [**Compact `Zitra-Core-v3` (256M · 7× Faster)**](https://huggingface.co/tomcupr/Zitra-Core-v3) · [**GitHub SDK (`zitra-forecast`)**](https://github.com/tomascupr/zitra-forecast) · [**GIFT-Eval CSV**](gift_eval_results.csv) · [**fev-bench CSV**](fev_bench_results.csv)
 
 ![Zitra v3 Benchmarks on GIFT-Eval and fev-bench](https://raw.githubusercontent.com/tomascupr/zitra-forecast/main/assets/pareto_gift_fev.png)
 

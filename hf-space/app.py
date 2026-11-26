@@ -37,6 +37,10 @@ except ImportError:  # local execution fallback
 from zitra import ZitraForecaster, build_holiday_covariates
 
 HF_ORG = os.environ.get("ZITRA_HF_ORG", "tomcupr")
+MODEL_CHOICES = [
+    ("Zitra-Titan-v3 (1.06B · Flagship 4-Arch Pop-Quiz)", f"{HF_ORG}/Zitra-Titan-v3"),
+    ("Zitra-Core-v3 (256M · Fast Distilled · 7× GPU / 11× CPU)", f"{HF_ORG}/Zitra-Core-v3"),
+]
 DEFAULT_REPO = os.environ.get("ZITRA_V3_REPO", f"{HF_ORG}/Zitra-Titan-v3")
 
 EXPERT_COLORS = {
@@ -180,6 +184,7 @@ def _serialize_x(seq) -> list:
 
 @spaces.GPU(duration=60)
 def run_demo(
+    model_repo: str,
     preset_name: str,
     csv_file,
     country_code: str,
@@ -222,8 +227,12 @@ def run_demo(
         else:
             holiday_note = "Ignored (series has no datetime timestamps)"
 
+    repo_id = model_repo or DEFAULT_REPO
+    is_core = "core" in repo_id.lower()
+    model_short = "Zitra-Core-v3" if is_core else "Zitra-Titan-v3"
+
     t0_s = time.perf_counter()
-    model = get_model(DEFAULT_REPO)
+    model = get_model(repo_id)
     fc = model.forecast(ctx, prediction_length=H, known_covariates=known_cov, fast=bool(fast_mode))
     latency_ms = (time.perf_counter() - t0_s) * 1000.0
 
@@ -306,14 +315,17 @@ def run_demo(
             x=future_x_plot,
             y=med.astype(float).tolist(),
             mode="lines",
-            name="Zitra-Titan-v3 (Median)",
+            name=f"{model_short} (Median)",
             line=dict(color="#4f46e5", width=3.0),
         )
     )
 
-    mode_str = "Fast Single-Pass" if fast_mode else "Full 4-Expert Pop-Quiz"
+    if is_core:
+        mode_str = "Fast Single-Pass (256M)" if fast_mode else "Compact Distilled (256M)"
+    else:
+        mode_str = "Fast Single-Pass" if fast_mode else "Full 4-Expert Pop-Quiz"
     metrics_lines = [
-        f"**Model:** `{DEFAULT_REPO}` *(100% Apache-2.0 · {mode_str})*  |  **Series:** `{label}` (`{len(ctx)}` → `{H}`)  |  **Holidays:** {holiday_note}  |  **Inference:** `{latency_ms:.0f} ms`"
+        f"**Model:** `{repo_id}` *(100% Apache-2.0 · {mode_str})*  |  **Series:** `{label}` (`{len(ctx)}` → `{H}`)  |  **Holidays:** {holiday_note}  |  **Inference:** `{latency_ms:.0f} ms`"
     ]
 
     stock_med = None
@@ -411,6 +423,20 @@ def run_demo(
             xaxis=dict(range=[0, 110], title="Linear-Pool Mixture-CDF Weight (%)"),
             yaxis=dict(autorange="reversed"),
         )
+    else:
+        w_fig.add_annotation(
+            text="Zitra-Core-v3 runs as one compact 256M distilled model (zero routing overhead · 7× GPU / 11× CPU speedup).",
+            xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False,
+            font=dict(size=13, color="#4f46e5"),
+        )
+        w_fig.update_layout(
+            title="Zitra-Core-v3 — Single Distilled 256M Architecture",
+            template="plotly_white",
+            height=150,
+            margin=dict(l=20, r=20, t=40, b=20),
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+        )
 
     ts_labels = [
         pd.Timestamp(v).strftime("%Y-%m-%d %H:%M") if isinstance(v, (pd.Timestamp, np.datetime64)) else str(v)
@@ -430,15 +456,20 @@ def run_demo(
 with gr.Blocks(theme=gr.themes.Soft(primary_hue="indigo", neutral_hue="slate"), title="Zitra v3 Live Demo (Apache-2.0)") as demo:
     gr.Markdown(
         """
-        # ⚡ Zitra v3 — 100% Apache-2.0 Test-Time Adaptive Time-Series Foundation Model
-        **Zero commercial restrictions (Apache-2.0)** · **4 orthogonal architectures (Patch Decoder + T5 Encoder + 30L Conformer + T5 4-MoE)** · **Built-in Public Holidays for 240+ countries**
+        # ⚡ Zitra v3 — 100% Apache-2.0 Time-Series Foundation Models
+        **Flagship `Zitra-Titan-v3` (1.06B)** & **Fast `Zitra-Core-v3` (256M)** · **Zero commercial restrictions (Apache-2.0)** · **Built-in Public Holidays for 240+ countries**
 
-        Pick a preset or upload any CSV to watch **Zitra-Titan-v3** quiz all four Apache-2.0 foundation priors on your series in real time and invert their exact **Linear-Pool Mixture CDF**. Toggle **Public Holiday Covariates** on the Grocery preset to watch the router automatically shift 100% onto covariate-native experts!
+        Pick a model and preset (or upload any CSV) to run live zero-shot probabilistic forecasts with built-in public holiday covariates.
         """
     )
 
     with gr.Row():
         with gr.Column(scale=1):
+            model_repo = gr.Radio(
+                choices=MODEL_CHOICES,
+                value=DEFAULT_REPO,
+                label="Select Zitra v3 Model",
+            )
             preset_name = gr.Dropdown(
                 choices=[
                     "Grocery Daily Orders (Czech Public Holidays + Weekly Cycle)",
@@ -472,7 +503,7 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="indigo", neutral_hue="slate"), 
 
     run_btn.click(
         fn=run_demo,
-        inputs=[preset_name, csv_file, country_code, horizon, eval_holdout, compare_stock_t0, show_experts, fast_mode],
+        inputs=[model_repo, preset_name, csv_file, country_code, horizon, eval_holdout, compare_stock_t0, show_experts, fast_mode],
         outputs=[main_plot, weights_plot, summary_md, out_table],
     )
 

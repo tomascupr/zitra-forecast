@@ -1,14 +1,18 @@
-# ⚡ Zitra v3 — #1 Fully Open (Apache-2.0) Zero-Shot Forecasting Model
+# ⚡ Zitra v3 — #1 Fully Open (Apache-2.0) Zero-Shot Forecasting Models
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-10b981)](LICENSE)
-[![Hugging Face](https://img.shields.io/badge/🤗%20Model-Zitra--Titan--v3-4f46e5)](https://huggingface.co/tomcupr/Zitra-Titan-v3)
+[![Titan-v3](https://img.shields.io/badge/🤗%20Flagship-Zitra--Titan--v3-0f172a)](https://huggingface.co/tomcupr/Zitra-Titan-v3)
+[![Core-v3](https://img.shields.io/badge/🤗%20Fast%20256M-Zitra--Core--v3-4f46e5)](https://huggingface.co/tomcupr/Zitra-Core-v3)
 [![Live Demo](https://img.shields.io/badge/⚡%20Live%20Demo-HF%20Space-indigo)](https://huggingface.co/spaces/tomcupr/zitra-v3-demo)
-[![GIFT-Eval](https://img.shields.io/badge/GIFT--Eval-0.6522%20MASE%20%2F%200.4422%20CRPS-4f46e5)](https://huggingface.co/spaces/Salesforce/GIFT-Eval)
-[![fev-bench](https://img.shields.io/badge/fev--bench-50.18%25%20SQL%20%2F%2080.2%25%20Win-10b981)](https://huggingface.co/spaces/autogluon/fev-bench)
 
-**Zitra v3 (`Zitra-Titan-v3`)** is the **#1 fully open-source (Pure Apache-2.0) zero-shot time-series foundation model** across both **Official GIFT-Eval (97 configs)** and **`fev-bench` (100 tasks)** — with **built-in public holidays for 240+ countries** and a single **`2.12 GB`** checkpoint (**`3.46 GB`** VRAM, fits any 6–8 GB consumer GPU).
+**Zitra v3** is a two-tier family of **100% Apache-2.0** zero-shot probabilistic time-series foundation models — ranked **#1 and #2 among all fully open (Apache-2.0) models** across both **GIFT-Eval** and **`fev-bench`**, with built-in public holidays for 240+ countries:
 
-![Zitra v3 Benchmarks on GIFT-Eval and fev-bench](assets/pareto_gift_fev.png)
+| Model | Params | GPU / 8-Core CPU | VRAM | GIFT-Eval (MASE ↓ / CRPS ↓) | `fev-bench` (SQL ↑ / Win ↑) | Best For |
+|---|---:|---:|---:|---|---|---|
+| **[⚡ Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3)** | 1.06B | 122 ms / 952 ms | 3.46 GB | **0.6522 / 0.4422** | **50.18%** / **79.7%** (#6) | Flagship accuracy · holiday & capacity planning |
+| **[⚡ Zitra-Core-v3](https://huggingface.co/tomcupr/Zitra-Core-v3)** | **256M** | **17.5 ms / 87 ms** | **1.07 GB** | **0.6551 / 0.4473** | **49.69%** / **75.5%** (#11) | High-throughput SKUs (`1,265/s`) · CPU & edge |
+
+![Zitra-Core-v3 and Zitra-Titan-v3 Benchmarks](assets/zitra_core_v3_benchmarks.png)
 
 ---
 
@@ -22,12 +26,12 @@ pip install "zitra-forecast @ git+https://github.com/tomascupr/zitra-forecast.gi
 import numpy as np
 from zitra import ZitraForecaster
 
-model = ZitraForecaster.from_pretrained("tomcupr/Zitra-Titan-v3")
+# Flagship accuracy: "tomcupr/Zitra-Titan-v3"  |  7x faster / CPU: "tomcupr/Zitra-Core-v3"
+model = ZitraForecaster.from_pretrained("tomcupr/Zitra-Core-v3")
 ctx = np.random.default_rng(42).standard_normal(512).cumsum()
-fc = model.forecast(ctx, prediction_length=96)  # fast=True for ~102ms
+fc = model.forecast(ctx, prediction_length=96)
 
 median, q10, q90 = fc.median, fc.quantile(0.1), fc.quantile(0.9)
-print(fc.routing_summary())
 ```
 
 **Pandas DataFrames with built-in public holidays** (`"CZ"`, `"DE-BY"`, `"US-CA"`, etc. — 240+ countries & subdivisions):
@@ -46,47 +50,33 @@ pred_df = model.predict_df(
 
 ---
 
-## Verified Benchmarks (Single Frozen Checkpoint, Zero Leakage)
+## Verified Benchmarks (Single Frozen Checkpoints, Zero Leakage)
 
-| Model | License | GIFT MASE ↓ | GIFT CRPS ↓ | fev SQL Win ↑ | fev SQL Skill ↑ | fev MASE Skill ↑ |
+| Model | License | GIFT MASE ↓ | GIFT CRPS ↓ | fev SQL Win ↑ | fev SQL Skill ↑ | fev Runtime ↓ |
 |---|---|---:|---:|---:|---:|---:|
-| **[⚡ Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3)** | **Apache-2.0** | **0.6522** | **0.4422** | **80.2%** (#6) | **50.18%** | **39.05%** |
-| Timestral-209M | *Non-Commercial* | 0.6575 | 0.4460 | 79.4% (#7) | 50.39% | 39.49% |
-| t0-gamma | Apache-2.0 | 0.6610 | 0.4520 | 73.8% (#12) | 49.42% | 37.99% |
-| TimesFM-3 | *Non-Commercial* | 0.6670 | 0.4560 | 67.6% (#17) | 48.99% | 37.82% |
-| Chronos-2 | Apache-2.0 | 0.6980 | 0.4850 | 57.9% (#23) | 47.28% | 35.50% |
-| Toto-2.0-2.5B | Apache-2.0 | 0.6960 | 0.4760 | 56.9% (#25) | 44.42% | 32.54% |
+| **[⚡ Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3)** *(1.06B)* | **Apache-2.0** | **0.6522** | **0.4422** | **79.7%** (#6) | **50.18%** | 6,764 s |
+| Timestral-209M | *Non-Commercial* | 0.6575 | 0.4460 | 78.8% (#7) | 50.39% | 3,827 s |
+| **[⚡ Zitra-Core-v3](https://huggingface.co/tomcupr/Zitra-Core-v3)** *(256M)* | **Apache-2.0** | **0.6551** | **0.4473** | **75.5%** (#11) | **49.69%** | **1,807 s** |
+| t0-gamma *(256M)* | Apache-2.0 | 0.6608 | 0.4520 | 72.9% (#13) | 49.42% | 15,862 s |
+| TimesFM-3 | *Non-Commercial* | 0.6668 | 0.4557 | 66.9% (#18) | 48.99% | 8,673 s |
+| Chronos-2 *(120M)* | Apache-2.0 | 0.6978 | 0.4854 | 56.9% (#24) | 47.28% | 2,738 s |
+| Toto-2.0-2.5B *(2.5B)* | Apache-2.0 | 0.6956 | 0.4759 | 55.9% (#25) | 44.42% | 13,835 s |
 
-- **GIFT-Eval (97 / 97):** #1 zero-shot open-weight model with any commercial license; beats `Timestral-209M` (−0.82% / −0.86%), `t0-gamma` (−1.33% / −2.17%), `TimesFM-3` (−2.22% / −3.03%), and `Chronos-2` (−6.56% / −8.82%).
-- **`fev-bench` (100 / 100):** First and only standard Apache-2.0 model past 50% SQL skill (**54.52% WQL**, **79.4% MASE win rate**), ranking **#6 / 55 models** ahead of `Timestral-209M` (#7) on both SQL and MASE win rates.
+- **`Zitra-Titan-v3`:** #1 fully open (Apache-2.0) model on both GIFT-Eval (`97/97`) and `fev-bench` (`100/100`), ahead of `Timestral-209M` on GIFT-Eval (`−0.82% / −0.86%`) and `fev-bench` win rate (`79.7%` vs. `78.8%` across 56 models).
+- **`Zitra-Core-v3`:** #1 compact (`256M`) Apache-2.0 model on both leaderboards — beating `t0-gamma` (`−0.87% / −1.04%` GIFT; `+0.27 pp` SQL, `63/100` wins on `fev-bench`), `TimesFM-3`, `Chronos-2`, and `Toto-2.0-2.5B` while running **8.8× faster than `t0-gamma`**, **4.8× faster than `TimesFM-3`**, and **2.1× faster than `Timestral-209M`**.
 
 ### Real-World Enterprise Proof (Rohlik · 100% Zero-Shot)
 
 ![Zero-Shot Rohlik Retail and Fulfillment Benchmarks](assets/rohlik_benchmark.png)
 
-- **Holiday weeks (12 European FCs, 2026 `D+7`):** Built-in `country=` holidays cut overall WAPE **4.62% → 3.88%** and slash 31 holiday weeks **13.58% → 7.81%** (**−24.9%** vs. Timestral-209M's 10.39%).
-- **Production ops (8 tasks, 10,859 forecasts, no holidays):** Wins **6 / 8** tasks vs. Timestral-209M (**−0.92% WAPE**, up to **−5.10%** on 7-day hourly FC orders).
-- **Public Rohlik Kaggle (`fev-bench`):** Cuts WQL vs. Timestral-209M by **−4.5% / −5.5%** (Orders 1D/1W) and **−7.1% / −15.4%** (SKU Sales 1D/1W).
-
----
-
-## Architecture & Systems Engineering
-
-| Expert | Architecture | Params | Role & Apache-2.0 Base |
-|---|---|---:|---|
-| **Zitra-t0-256M** | Patch-Decoder | 255.6M | Dynamic-RoPE 16K soup ([t0-gamma](https://huggingface.co/theforecastingcompany/t0-gamma)) |
-| **Zitra-Chronos2** | T5 Encoder | 119.5M | Covariate soup ([chronos-2](https://huggingface.co/amazon/chronos-2)) |
-| **Zitra-PatchTST** | 30L Conformer | 384.6M | Long univariate · skipped on covs ([PatchTST-FM-r2](https://huggingface.co/ibm-granite/granite-timeseries-patchtst-fm-r2)) |
-| **iAmTime-302M** | T5 4-Expert MoE | 302.1M | Native `arcsinh` MoE ([iAmTime](https://huggingface.co/anishsaha/iAmTime-base-forecast)) |
-
-- **Fused-Batch Pop-Quiz Execution (`2.6×` speedup: 321 ms → 122 ms):** Packs `[main, -main, bt0, bt1]` into fused padded GPU passes per expert with **0 learned router weights** (plus opt-in single-pass `fast=True` at 102–115 ms).
-- **Single `2.12 GB` `bfloat16` File + Mixed-Precision Discipline (`3.46 GB` VRAM):** Hydrates 30-layer Conformer `PatchTST` to `fp32` under `bf16` autocast (`+0.007%` FP32 parity) and folds all LoRAs algebraically into base weights (zero adapter overhead).
-- **16K Dynamic RoPE, Zero-Compute Covariate Gating & Mixture-CDF Inversion:** Dynamic RoPE `scale_base` (`512/1536/2048`) up to 16,384 steps, skips `PatchTST` on known covariates, self-gates cross-learning via causal backtests, and inverts `F_mix(y) = Σ w_e F_e(y)` across 21 quantiles with **≤ 2e-5** batch/singleton invariance.
+- **Holiday weeks (12 European FCs, 2026 `D+7`):** `Zitra-Titan-v3` + built-in `country=` holidays cut overall WAPE **4.62% → 3.88%** and slash 31 holiday weeks **13.58% → 7.81%** (**−24.9%** vs. Timestral-209M's 10.39%).
+- **High-volume SKU & hourly ops (8 tasks, 10,859 forecasts):** `Zitra-Titan-v3` wins **6 / 8** tasks vs. Timestral-209M (**−0.92% WAPE**); `Zitra-Core-v3` forecasts **10,000 SKUs in 7.9 s (`1,265 SKUs/sec`, `16.8×` faster)** within **0.5–1.6% WAPE** of Titan (and beats Titan on 28-day SKU MASE & SQL).
+- **Public Rohlik Kaggle (`fev-bench`):** Both models beat Timestral-209M on all 4 tasks (`Core-v3` WQL: **−6.0% / −5.8%** Orders 1D/1W, **−4.8% / −13.9%** Sales 1D/1W).
 
 ---
 
 ## Live Demo & License
 
-Try **Zitra v3** live on [Hugging Face Spaces (`tomcupr/zitra-v3-demo`)](https://huggingface.co/spaces/tomcupr/zitra-v3-demo), or run locally with `pip install "zitra-forecast[demo] @ git+https://github.com/tomascupr/zitra-forecast.git" && python hf-space/app.py`.
+Try both **`Zitra-Titan-v3`** and **`Zitra-Core-v3`** live on [Hugging Face Spaces (`tomcupr/zitra-v3-demo`)](https://huggingface.co/spaces/tomcupr/zitra-v3-demo), or run locally with `pip install "zitra-forecast[demo] @ git+https://github.com/tomascupr/zitra-forecast.git" && python hf-space/app.py`.
 
 **Apache License, Version 2.0** — 100% free for commercial and research use. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

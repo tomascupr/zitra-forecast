@@ -3,6 +3,7 @@
 Usage:
     pip install "zitra-forecast @ git+https://github.com/tomascupr/zitra-forecast.git" gift-eval
     GIFT_EVAL=/path/to/gift_eval python gift_eval.py --model tomcupr/Zitra-Titan-v3
+    GIFT_EVAL=/path/to/gift_eval python gift_eval.py --model tomcupr/Zitra-Core-v3
 """
 
 from __future__ import annotations
