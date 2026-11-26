@@ -1,6 +1,6 @@
 # ⚡ Zitra v2 — State-of-the-Art Probabilistic Time-Series Foundation Models
 
-[![Hugging Face](https://img.shields.io/badge/🤗%20Models-Zitra%20v2-yellow)](https://huggingface.co/tomcupr)
+[![Hugging Face](https://img.shields.io/badge/🤗%20Collection-Zitra%20v2-yellow)](https://huggingface.co/collections/tomcupr/zitra-v2-time-series-foundation-models-6b07f1ff7bd52f98a455d847)
 [![Live Demo](https://img.shields.io/badge/⚡%20Live%20Demo-HF%20Space-indigo)](https://huggingface.co/spaces/tomcupr/zitra-v2-demo)
 [![GIFT-Eval](https://img.shields.io/badge/GIFT--Eval-0.6443%20MASE%20%2F%200.4352%20CRPS-4f46e5)](https://huggingface.co/spaces/Salesforce/GIFT-Eval)
 [![fev-bench](https://img.shields.io/badge/fev--bench-50.61%20SQL%20%2F%2039.85%20MASE-10b981)](https://huggingface.co/spaces/autogluon/fev-bench)

@@ -7,7 +7,7 @@ name = "zitra-forecast"
 version = "0.2.0"
 description = "Zitra v2: State-of-the-art probabilistic time-series foundation models (Zitra-Titan-585M, Zitra-Apex-585M, Zitra-209M-v2)."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {text = "Modified MIT + Apache-2.0 components"}
 keywords = ["time-series", "forecasting", "foundation-model", "probabilistic-forecasting", "pytorch"]
 dependencies = [

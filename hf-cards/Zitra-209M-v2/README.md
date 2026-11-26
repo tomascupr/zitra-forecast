@@ -54,7 +54,7 @@ license: other
 
 **Zitra-209M-v2** is an exact **`209,312,256`-parameter, 1.00× latency drop-in upgrade** to `mistralai/Timestral-209M` — delivering sharper probabilistic calibration across **GIFT-Eval** (`−0.20%` overall CRPS/WQL, `−0.23%` ex-solar) and **fev-bench** (`−0.41%` equal-task WQL, **`−0.74%` covariate WQL**, **`−0.67%` multivariate WQL**), plus **`−4.90% MASE / −5.65% WQL`** on live prospective count forecasting — with **zero extra parameters and zero latency overhead (`25.98 ms` vs `25.92 ms` on B300)**.
 
-**Zitra v2 Family:** [**Zitra-Titan-585M** (Flagship Adaptive)](https://huggingface.co/tomcupr/Zitra-Titan-585M) · [**Zitra-Apex-585M** (Fast Covariate Specialist)](https://huggingface.co/tomcupr/Zitra-Apex-585M) · [**Zitra-209M-v2** (1.00× Speed Drop-In)](https://huggingface.co/tomcupr/Zitra-209M-v2) · [**Interactive Live Demo Space**](https://huggingface.co/spaces/tomcupr/zitra-v2-demo)
+**Zitra v2 Family:** [**Collection**](https://huggingface.co/collections/tomcupr/zitra-v2-time-series-foundation-models-6b07f1ff7bd52f98a455d847) · [**Zitra-Titan-585M** (Flagship Adaptive)](https://huggingface.co/tomcupr/Zitra-Titan-585M) · [**Zitra-Apex-585M** (Fast Covariate Specialist)](https://huggingface.co/tomcupr/Zitra-Apex-585M) · [**Zitra-209M-v2** (1.00× Speed Drop-In)](https://huggingface.co/tomcupr/Zitra-209M-v2) · [**Interactive Live Demo Space**](https://huggingface.co/spaces/tomcupr/zitra-v2-demo)
 
 ---
 

@@ -56,7 +56,7 @@ license: other
 
 **Zitra-Apex-585M** is the fast, single-pass multi-prior specialist of the **Zitra v2** family — delivering the **#1 MASE skill score (`39.85`) on [fev-bench](https://huggingface.co/spaces/autogluon/fev-bench)**, a statistically significant **`−0.85%` equal-source MASE reduction** over Timestral-209M (95% CI `[−1.69%, −0.08%]`), and massive wins on **covariate-rich business & retail forecasting (`−1.66% MASE / −2.05% WQL`)** — all in **84 ms** on GPU (**3× faster than Zitra-Titan-585M**).
 
-**Zitra v2 Family:** [**Zitra-Titan-585M** (Flagship Adaptive)](https://huggingface.co/tomcupr/Zitra-Titan-585M) · [**Zitra-Apex-585M** (Fast Covariate Specialist)](https://huggingface.co/tomcupr/Zitra-Apex-585M) · [**Zitra-209M-v2** (1.00× Speed Drop-In)](https://huggingface.co/tomcupr/Zitra-209M-v2) · [**Interactive Live Demo Space**](https://huggingface.co/spaces/tomcupr/zitra-v2-demo)
+**Zitra v2 Family:** [**Collection**](https://huggingface.co/collections/tomcupr/zitra-v2-time-series-foundation-models-6b07f1ff7bd52f98a455d847) · [**Zitra-Titan-585M** (Flagship Adaptive)](https://huggingface.co/tomcupr/Zitra-Titan-585M) · [**Zitra-Apex-585M** (Fast Covariate Specialist)](https://huggingface.co/tomcupr/Zitra-Apex-585M) · [**Zitra-209M-v2** (1.00× Speed Drop-In)](https://huggingface.co/tomcupr/Zitra-209M-v2) · [**Interactive Live Demo Space**](https://huggingface.co/spaces/tomcupr/zitra-v2-demo)
 
 ![Zitra v2 Benchmarks on GIFT-Eval and fev-bench](https://raw.githubusercontent.com/tomascupr/zitra-forecast/main/assets/pareto_gift_fev.png)
 

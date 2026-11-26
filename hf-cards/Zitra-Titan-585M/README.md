@@ -56,7 +56,7 @@ license: other
 
 **Zitra-Titan-585M** is the flagship model of the **Zitra v2** time-series forecasting family — setting a new state of the art on **both** [Official GIFT-Eval](https://huggingface.co/spaces/Salesforce/GIFT-Eval) (**`0.6443 MASE / 0.4352 CRPS`**, beating Mistral's Timestral-209M by **`−2.02% / −2.43%`** across 97 tasks) and [fev-bench](https://huggingface.co/spaces/autogluon/fev-bench) (**`50.61 SQL / 54.95 WQL / 39.71 MASE` skill**, winning every univariate, multivariate, covariate, and no-covariate slice).
 
-**Zitra v2 Family:** [**Zitra-Titan-585M** (Flagship Adaptive)](https://huggingface.co/tomcupr/Zitra-Titan-585M) · [**Zitra-Apex-585M** (Fast Covariate Specialist)](https://huggingface.co/tomcupr/Zitra-Apex-585M) · [**Zitra-209M-v2** (1.00× Speed Drop-In)](https://huggingface.co/tomcupr/Zitra-209M-v2) · [**Interactive Live Demo Space**](https://huggingface.co/spaces/tomcupr/zitra-v2-demo)
+**Zitra v2 Family:** [**Collection**](https://huggingface.co/collections/tomcupr/zitra-v2-time-series-foundation-models-6b07f1ff7bd52f98a455d847) · [**Zitra-Titan-585M** (Flagship Adaptive)](https://huggingface.co/tomcupr/Zitra-Titan-585M) · [**Zitra-Apex-585M** (Fast Covariate Specialist)](https://huggingface.co/tomcupr/Zitra-Apex-585M) · [**Zitra-209M-v2** (1.00× Speed Drop-In)](https://huggingface.co/tomcupr/Zitra-209M-v2) · [**Interactive Live Demo Space**](https://huggingface.co/spaces/tomcupr/zitra-v2-demo)
 
 ![Zitra v2 Benchmarks on GIFT-Eval and fev-bench](https://raw.githubusercontent.com/tomascupr/zitra-forecast/main/assets/pareto_gift_fev.png)
 
