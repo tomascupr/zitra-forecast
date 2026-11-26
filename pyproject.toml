@@ -28,9 +28,6 @@ demo = [
     "gradio>=5.0.0",
     "plotly>=5.22.0",
 ]
-v2 = [
-    "timestral @ git+https://github.com/mistralai/timestral.git",
-]
 all = [
     "gradio>=5.0.0",
     "plotly>=5.22.0",

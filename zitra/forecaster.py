@@ -59,26 +59,15 @@ def _resolve_checkpoint_dir(repo_id_or_path: str | Path, revision: str | None = 
 
 
 def _detect_variant(ckpt_dir: Path) -> str:
-    if (ckpt_dir / "patchtst_config.json").exists():
+    if (ckpt_dir / "patchtst_config.json").exists() or (ckpt_dir / "zitra_v3_forecaster.py").exists():
         return "titan_v3"
     frozen_p = ckpt_dir / "frozen.json"
     if frozen_p.exists():
         meta = json.loads(frozen_p.read_text())
-        name = str(meta.get("name", "")).lower()
-        cls_name = str(meta.get("entrypoint", {}).get("class", "")).lower()
-        if "v3" in name or "zitrav3" in cls_name:
+        name = str(meta.get("model", meta.get("name", ""))).lower()
+        if "v3" in name or "titan" in name:
             return "titan_v3"
-        if "titan" in name or "titan" in cls_name:
-            return "titan"
-        if "apex" in name or "apex" in cls_name:
-            return "apex"
-        if "209" in name or "zitra209" in cls_name:
-            return "zitra209"
-    if (ckpt_dir / "meta_config.json").exists():
-        return "apex"
-    if (ckpt_dir / "t0_config.json").exists():
-        return "titan"
-    return "zitra209"
+    raise ValueError(f"Unrecognized Zitra v3 checkpoint directory: {ckpt_dir}")
 
 
 class ZitraForecaster:
@@ -118,20 +107,8 @@ class ZitraForecaster:
             from .backends.titan_v3 import ZitraV3Forecaster
 
             backend = ZitraV3Forecaster.from_pretrained(ckpt_dir, device=device)
-        elif variant == "zitra209":
-            from .backends.zitra209 import Zitra209Forecaster
-
-            backend = Zitra209Forecaster.from_pretrained(ckpt_dir, device=device)
-        elif variant == "apex":
-            from .backends.apex585 import ApexForecaster
-
-            backend = ApexForecaster.from_pretrained(ckpt_dir, device=device)
-        elif variant == "titan":
-            from .backends.titan585 import TitanForecaster
-
-            backend = TitanForecaster.from_pretrained(ckpt_dir, device=device)
         else:
-            raise ValueError(f"Unknown Zitra variant: {variant}")
+            raise ValueError(f"Unsupported Zitra variant: {variant}")
 
         return cls(backend=backend, variant=variant, model_id=str(repo_id_or_path))
 

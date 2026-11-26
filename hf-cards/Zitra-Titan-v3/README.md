@@ -55,7 +55,7 @@ model-index:
 
 # ⚡ Zitra-Titan-v3
 
-**#1 Fully Open (Apache-2.0) Zero-Shot Time-Series Foundation Model** across both **Official GIFT-Eval (97 configs)** and **`fev-bench` (100 tasks)** — with **zero benchmark overlap**.
+**#1 Fully Open (Apache-2.0) Zero-Shot Time-Series Foundation Model** across both **Official GIFT-Eval (97 configs)** and **`fev-bench` (100 tasks)**.
 
 **2.12 GB single file** · **3.46 GB GPU VRAM** *(any 6–8 GB GPU)* · **122 ms latency** *(B300)* · **Built-in public holidays for 240+ countries**
 
@@ -101,7 +101,7 @@ pred_df = model.predict_df(
 
 ## Verified Benchmarks
 
-Every number below comes from this single frozen checkpoint (`frozen.json` SHA-256 `f61bde12f03830e9`) with strictly causal zero-leakage evaluation.
+Every number below comes from this single frozen checkpoint with strictly causal evaluation and zero test-data leakage (`0.0%` `fev-bench` overlap).
 
 ### Official GIFT-Eval (97 / 97 configs · lower is better ↓)
 
@@ -153,7 +153,7 @@ Zitra-Titan-v3 unifies **four genuinely orthogonal Apache-2.0 foundation archite
 
 | Expert | Architecture | Params | Role & Apache-2.0 Base |
 |---|---|---:|---|
-| **Zitra-t0-256M** | Patch-Decoder | 255.6M | Dyn32K soup · 16K ctx ([t0-gamma](https://huggingface.co/theforecastingcompany/t0-gamma)) |
+| **Zitra-t0-256M** | Patch-Decoder | 255.6M | Dynamic-RoPE 16K soup ([t0-gamma](https://huggingface.co/theforecastingcompany/t0-gamma)) |
 | **Zitra-Chronos2** | T5 Encoder | 119.5M | Covariate soup ([chronos-2](https://huggingface.co/amazon/chronos-2)) |
 | **Zitra-PatchTST** | 30L Conformer | 384.6M | Long univariate · skipped on covs ([PatchTST-FM-r2](https://huggingface.co/ibm-granite/granite-timeseries-patchtst-fm-r2)) |
 | **iAmTime-302M** | T5 4-Expert MoE | 302.1M | Native `arcsinh` MoE ([iAmTime](https://huggingface.co/anishsaha/iAmTime-base-forecast)) |
@@ -170,7 +170,7 @@ Zitra-Titan-v3 unifies **four genuinely orthogonal Apache-2.0 foundation archite
 
 | Specification | Value | Details |
 |---|---|---|
-| **Checkpoint** | **2.12 GB** | Single `bfloat16` `safetensors` file (vendored `_iamtime/` included) |
+| **Checkpoint** | **2.12 GB** | Single `bfloat16` `safetensors` file (all 4 experts) |
 | **Parameters** | **1.06B** | 1,061,831,429 total · 0 learned router parameters |
 | **GPU VRAM** | **3.46 GB** | Standard inference *(fits any 6–8 GB GPU; 6–12 GB for 16K batches)* |
 | **Pop-Quiz** | **122 ms** | B300 univariate median · 174 ms known covariates (H=48) |

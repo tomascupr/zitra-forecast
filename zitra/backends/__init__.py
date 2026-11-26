@@ -1,1 +1,1 @@
-"""Backends for Zitra-209M-v2, Zitra-Apex-585M, and Zitra-Titan-585M."""
+"""Backends for Zitra v3 (100% Pure Apache-2.0)."""

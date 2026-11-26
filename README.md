@@ -6,7 +6,7 @@
 [![GIFT-Eval](https://img.shields.io/badge/GIFT--Eval-0.6522%20MASE%20%2F%200.4422%20CRPS-4f46e5)](https://huggingface.co/spaces/Salesforce/GIFT-Eval)
 [![fev-bench](https://img.shields.io/badge/fev--bench-50.18%25%20SQL%20%2F%2080.2%25%20Win-10b981)](https://huggingface.co/spaces/autogluon/fev-bench)
 
-**Zitra v3 (`Zitra-Titan-v3`)** is the **#1 fully open-source (Pure Apache-2.0) zero-shot time-series foundation model** across both **Official GIFT-Eval (97 configs)** and **`fev-bench` (100 tasks)** — with **zero benchmark overlap**, **built-in public holidays for 240+ countries**, and a single **`2.12 GB`** checkpoint (**`3.46 GB`** VRAM, fits any 6–8 GB consumer GPU).
+**Zitra v3 (`Zitra-Titan-v3`)** is the **#1 fully open-source (Pure Apache-2.0) zero-shot time-series foundation model** across both **Official GIFT-Eval (97 configs)** and **`fev-bench` (100 tasks)** — with **built-in public holidays for 240+ countries** and a single **`2.12 GB`** checkpoint (**`3.46 GB`** VRAM, fits any 6–8 GB consumer GPU).
 
 ![Zitra v3 Benchmarks on GIFT-Eval and fev-bench](assets/pareto_gift_fev.png)
 
@@ -74,7 +74,7 @@ pred_df = model.predict_df(
 
 | Expert | Architecture | Params | Role & Apache-2.0 Base |
 |---|---|---:|---|
-| **Zitra-t0-256M** | Patch-Decoder | 255.6M | Dyn32K soup · 16K ctx ([t0-gamma](https://huggingface.co/theforecastingcompany/t0-gamma)) |
+| **Zitra-t0-256M** | Patch-Decoder | 255.6M | Dynamic-RoPE 16K soup ([t0-gamma](https://huggingface.co/theforecastingcompany/t0-gamma)) |
 | **Zitra-Chronos2** | T5 Encoder | 119.5M | Covariate soup ([chronos-2](https://huggingface.co/amazon/chronos-2)) |
 | **Zitra-PatchTST** | 30L Conformer | 384.6M | Long univariate · skipped on covs ([PatchTST-FM-r2](https://huggingface.co/ibm-granite/granite-timeseries-patchtst-fm-r2)) |
 | **iAmTime-302M** | T5 4-Expert MoE | 302.1M | Native `arcsinh` MoE ([iAmTime](https://huggingface.co/anishsaha/iAmTime-base-forecast)) |
