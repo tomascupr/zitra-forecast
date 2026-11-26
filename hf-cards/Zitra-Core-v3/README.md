@@ -55,9 +55,9 @@ model-index:
 
 # ⚡ Zitra-Core-v3
 
-**#1 Compact (`256M`) Fully Open (Apache-2.0) Time-Series Foundation Model** across both **GIFT-Eval** and **`fev-bench`** — **`17.5 ms` GPU · `87 ms` CPU**.
+**#1 Compact (256M) Fully Open (Apache-2.0) Time-Series Foundation Model** — outperforming `t0-gamma`, `TimesFM-3`, `Chronos-2`, and `Toto-2.0-2.5B` across both **GIFT-Eval** and **`fev-bench`**, at **8.8× the throughput of `t0-gamma`** (**17.5 ms** GPU · **87 ms** CPU).
 
-Distilled from our flagship [`Zitra-Titan-v3`](https://huggingface.co/tomcupr/Zitra-Titan-v3), `Zitra-Core-v3` outperforms `t0-gamma`, `TimesFM-3`, `Chronos-2`, `iAmTime`, and `Toto-2.0-2.5B` across both leaderboards while running **`8.8×` faster than `t0-gamma`**, **`4.8×` faster than `TimesFM-3`**, **`2.1×` faster than `Timestral-209M`**, and **`1.5×` faster than `Chronos-2`** — in just **`1.07 GB` VRAM** with built-in public holidays for 240+ countries.
+Distilled from our flagship [`Zitra-Titan-v3`](https://huggingface.co/tomcupr/Zitra-Titan-v3), `Zitra-Core-v3` also runs **4.8× faster than `TimesFM-3`**, **2.1× faster than `Timestral-209M`**, and **1.5× faster than `Chronos-2`** — in just **1.07 GB VRAM** with built-in public holidays for 240+ countries.
 
 [**Live Demo Space**](https://huggingface.co/spaces/tomcupr/zitra-v3-demo) · [**Flagship `Zitra-Titan-v3`**](https://huggingface.co/tomcupr/Zitra-Titan-v3) · [**GitHub SDK (`zitra-forecast`)**](https://github.com/tomascupr/zitra-forecast) · [**GIFT-Eval CSV**](gift_eval_results.csv) · [**fev-bench CSV**](fev_bench_results.csv)
 
