@@ -14,19 +14,19 @@
 
 ## Verified Benchmarks (One Single Frozen Checkpoint, Zero Leakage)
 
-All numbers below come from one frozen checkpoint (`2.124 GB` `model.safetensors`, `1.06B` total params, `0` learned router weights, `trained_on_benchmark_datasets = []`):
+All numbers below come from one frozen checkpoint (`2.12 GB` `model.safetensors`, `1.06B` total params, `0` learned router weights, `trained_on_benchmark_datasets = []`):
 
-| Model | License | Disk Size | B300 Latency | GIFT-Eval (MASE / CRPS ↓) | fev-bench Skill (MASE / SQL / WQL ↑) |
-|---|---|---:|---:|---:|---:|
-| **[Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3)** | **Pure Apache-2.0** | **`2.12 GB`** | **`122 ms`** *(`102 ms` fast)* | **`0.6522 / 0.4422`** | **`39.05% / 50.18% / 54.52%`** |
-| `t0-gamma` *(prev #1 Apache-2.0)* | Apache-2.0 | `1.02 GB` | ~38 ms | `0.661 / 0.452` | `37.99% / 49.42% / 53.40%` |
-| `Chronos-2` | Apache-2.0 | `0.24 GB` | ~16 ms | `0.698 / 0.485` | `35.50% / 47.28% / —` |
-| `Toto-2.0-2.5B` | Apache-2.0 | `5.0 GB` | — | `0.696 / 0.476` | `32.54% / 44.42% / —` |
-| *`TimesFM-3`* | *Non-Commercial* | — | — | *`0.667 / 0.456`* | *`37.82% / 48.99% / —`* |
-| *`Timestral-209M`* | *Non-Commercial* | *`0.42 GB`* | *~28 ms* | *`0.6575 / 0.4460`* | *`39.49% / 50.39% / 54.63%`* |
+| Model | License | GIFT MASE ↓ | GIFT CRPS ↓ | fev SQL Win ↑ | fev SQL Skill ↑ | fev MASE Skill ↑ |
+|---|---|---:|---:|---:|---:|---:|
+| **[⚡ Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3)** | **Apache-2.0** | **0.6522** | **0.4422** | **80.2%** (#6) | **50.18%** | **39.05%** |
+| Timestral-209M | *Non-Commercial* | 0.6575 | 0.4460 | 79.4% (#7) | 50.39% | 39.49% |
+| t0-gamma | Apache-2.0 | 0.6610 | 0.4520 | 73.8% (#12) | 49.42% | 37.99% |
+| TimesFM-3 | *Non-Commercial* | 0.6670 | 0.4560 | 67.6% (#17) | 48.99% | 37.82% |
+| Chronos-2 | Apache-2.0 | 0.6980 | 0.4850 | 57.9% (#23) | 47.28% | 35.50% |
+| Toto-2.0-2.5B | Apache-2.0 | 0.6960 | 0.4760 | 56.9% (#25) | 44.42% | 32.54% |
 
-- **Official GIFT-Eval (97 / 97 configs, strictly causal zero-leakage):** **`0.6522 MASE / 0.4422 CRPS`** — beats **`Timestral-209M`** (`−0.82% MASE / −0.86% CRPS`, `−1.61% / −1.34%` ex-Jena), beats **`t0-gamma`** (`−1.33% / −2.17%`), beats **`TimesFM-3`** (`−2.22% / −3.03%`), and beats **`Chronos-2`** (`−6.56% / −8.82%`).
-- **Official `fev-bench` (100 / 100 tasks, strictly per-window zero-leakage):** **`39.05% MASE / 50.18% SQL / 54.52% WQL`** — the **first and only Pure Apache-2.0 model above 50% SQL skill**, ranking **#6 overall across 55 models** on the official leaderboard ahead of non-commercial `Timestral-209M` (#7) on **both SQL win rate (`80.2%` vs `79.4%`) and MASE win rate (`79.4%` vs `78.7%`)**, and beating **`t0-gamma`** (`+1.06 pp MASE / +0.76 pp SQL`) and **`TimesFM-3`** (`+1.19 pp SQL`).
+- **Official GIFT-Eval (97 / 97 configs, strictly causal zero-leakage):** **0.6522 MASE / 0.4422 CRPS** — beats `Timestral-209M` (−0.82% MASE / −0.86% CRPS; −1.61% / −1.34% ex-Jena), `t0-gamma` (−1.33% / −2.17%), `TimesFM-3` (−2.22% / −3.03%), and `Chronos-2` (−6.56% / −8.82%).
+- **Official `fev-bench` (100 / 100 tasks, strictly per-window zero-leakage):** **39.05% MASE / 50.18% SQL / 54.52% WQL** — the **first and only Pure Apache-2.0 model above 50% SQL skill**, ranking **#6 overall across 55 models** ahead of non-commercial `Timestral-209M` (#7) on **both SQL win rate (80.2% vs 79.4%) and MASE win rate (79.4% vs 78.7%)**.
 
 ---
 

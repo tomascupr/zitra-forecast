@@ -71,33 +71,49 @@ model-index:
 
 Instead of forcing every time series through one frozen inductive bias (or restricting commercial users under non-production licenses), **Zitra-Titan-v3** unifies **four genuinely orthogonal Apache-2.0 foundation architectures** in one `2.12 GB` file and adapts dynamically at inference time with **zero learned router weights**:
 
-1. **Four Orthogonal Pure Apache-2.0 Backbones (`1,061,831,429` total params, `2.124 GB` `bf16` on disk):**
-   - **`Zitra-t0-256M-Dyn32K` (`255.6M`, Patch-Decoder Transformer):** Full-depth algebraically-folded FullLoRA model soup over `t0-gamma` with Dynamic RoPE `scale_base` (`512 / 1536 / 2048`), natively extending known-covariate context to **`16,384`** steps with zero short-horizon degradation.
-   - **`Zitra-Chronos2-120M` (`119.5M`, T5 Encoder-Only):** Covariate-trained algebraically-folded FullLoRA soup over `Chronos-2`.
-   - **`Zitra-PatchTST-385M` (`384.6M`, 30-Block Conformer):** Long-history univariate specialist derived from IBM Granite `PatchTST-FM-r2` (automatically gated to `0.000` on known-covariate series).
-   - **`iAmTime-302M` (`302.1M`, T5 Encoder-Decoder 4-Expert MoE):** Native `arcsinh`-scaled multivariate & covariate MoE expert with vendored Apache-2.0 inference code.
-2. **Fused-Batch Causal Test-Time Pop-Quiz Routing (`122 ms` B300; `102 ms` `fast=True`):**
-   - Evaluates all active experts on horizon-matched causal rolling backtests inside fused GPU passes (`[main, -main, bt0, bt1]`), combining outlier-proof median-centered log-losses with effective sample-size shrinkage `n_eff / (n_eff + κ)` and cross-cutoff agreement penalties into an unclamped Bayesian posterior `w ∈ Δ⁴`.
-   - Automatically triggers independent **Causal Self-Gated Cross-Inference (`cross_learning="auto"`)** on short univariate panels only when cross-series attention strictly beats independent inference on causal backtests.
-3. **Exact Piecewise-Linear Mixture-CDF Inversion:**
-   - Constructs `F_mix(y) = Σ w_e F_e(y)` and inverts it at every decile — guaranteeing a bounded influence function against minority-expert outliers and calibrated uncertainty widening when experts disagree.
+| Expert | Architecture | Params | Role | License |
+|---|---|---:|---|---|
+| **Zitra-t0-256M-Dyn32K** | Patch-Decoder Transformer | 255.6M | 4-seed Dyn32K FullLoRA soup · up to 16K covariate context | Apache-2.0 |
+| **Zitra-Chronos2-120M** | T5 Encoder-Only | 119.5M | Covariate-trained FullLoRA soup | Apache-2.0 |
+| **Zitra-PatchTST-385M** | 30-Block Conformer | 384.6M | Long-history univariate specialist *(skipped on known covariates)* | Apache-2.0 |
+| **iAmTime-302M** | T5 4-Expert MoE | 302.1M | Native `arcsinh` multivariate & covariate MoE | Apache-2.0 |
+
+- **Fused-Batch Causal Test-Time Pop-Quiz Routing (`122 ms` B300; `102 ms` `fast=True`):** Evaluates all active experts on horizon-matched causal rolling backtests inside fused GPU passes (`[main, -main, bt0, bt1]`), combining outlier-proof median-centered log-losses with effective sample-size shrinkage `n_eff / (n_eff + κ)` and cross-cutoff agreement penalties into an unclamped Bayesian posterior `w ∈ Δ⁴`.
+- **Causal Self-Gated Cross-Inference (`cross_learning="auto"`):** Automatically enables cross-series attention on short univariate panels only when it strictly beats independent inference on causal rolling backtests.
+- **Exact Piecewise-Linear Mixture-CDF Inversion:** Constructs `F_mix(y) = Σ w_e F_e(y)` and inverts it at every quantile — guaranteeing a bounded influence function against minority-expert outliers and calibrated uncertainty widening when experts disagree.
 
 ---
 
 ## Complete Verified Benchmarks
 
-Zero GIFT-Eval or `fev-bench` datasets were used during post-training or model selection (`trained_on_benchmark_datasets = []`). Every number comes from this single frozen checkpoint (`frozen.json` SHA-256 `f61bde12f03830e9`).
+Zero GIFT-Eval or `fev-bench` datasets were used during post-training or model selection (`trained_on_benchmark_datasets = []`). Every number below comes from this single frozen checkpoint (`frozen.json` SHA-256 `f61bde12f03830e9`).
 
-| Benchmark | Metric | **Zitra-Titan-v3** *(Apache-2.0)* | Timestral-209M *(Non-Comm)* | t0-gamma *(Apache-2.0)* | TimesFM-3 *(Non-Comm)* | Toto-2.0-2.5B *(Apache-2.0)* | Chronos-2 *(Apache-2.0)* |
-|---|---|---:|---:|---:|---:|---:|---:|
-| **GIFT-Eval** *(97 configs)* | MASE ↓ | **`0.6522`** | `0.6575` | `0.661` | `0.667` | `0.696` | `0.698` |
-| | CRPS / WQL ↓ | **`0.4422`** | `0.4460` | `0.452` | `0.456` | `0.476` | `0.485` |
-| **fev-bench** *(100 tasks)* | SQL Skill ↑ | **`50.18%`** | `50.39%` | `49.42%` | `48.99%` | `44.42%` | `47.28%` |
-| | WQL Skill ↑ | **`54.52%`** | `54.63%` | `53.40%` | — | — | — |
-| | MASE Skill ↑ | **`39.05%`** | `39.49%` | `37.99%` | `37.82%` | `32.54%` | `35.50%` |
+### Official GIFT-Eval (97 / 97 configs · lower is better ↓)
 
-- **Official GIFT-Eval Breakdown (97 / 97, strictly causal zero-leakage):** `−0.82% MASE / −0.86% CRPS` vs `Timestral-209M` (`−1.61% / −1.34%` ex-Jena), with standout family wins on `solar` (`−26.3% / −24.3%`), `temperature_rain` (`−10.5% / −17.1%`), `m4_hourly` (`−9.0%` CRPS), `bizitobs_application` (`−2.7% / −7.5%`), `kdd_cup_2018` (`−4.5% / −5.3%`), `loop_seattle` (`−3.4% / −4.1%`), `hospital` (`−0.9% / −3.0%`), `hierarchical_sales`, `restaurant`, `car_parts`, and `m4_monthly/quarterly/yearly`. Full validated 97-row CSV included as [`gift_eval_results.csv`](gift_eval_results.csv).
-- **Official `fev-bench` Breakdown (100 / 100, strictly per-window zero-leakage):** `51 / 100` SQL wins vs `Timestral-209M`, including `past_cov_only` **`−3.84%` SQL**, `epf_de` **`−8.37%`**, `favorita_stores_1W` **`−12.28%`**, `rohlik_sales_1W` **`−11.89%`**, `uk_covid_nation_1W` **`−22.61%`**, and `solar_1W` **`−12.92%`**. Full 100-row CSV included as [`fev_bench_results.csv`](fev_bench_results.csv).
+| Model | License | MASE ↓ | CRPS ↓ | Zitra Gain (MASE / CRPS) |
+|---|---|---:|---:|---:|
+| **⚡ Zitra-Titan-v3** | **Apache-2.0** | **0.6522** | **0.4422** | — |
+| Timestral-209M | *Non-Commercial* | 0.6575 | 0.4460 | −0.82% / −0.86% |
+| t0-gamma | Apache-2.0 | 0.6610 | 0.4520 | −1.33% / −2.17% |
+| TimesFM-3 | *Non-Commercial* | 0.6670 | 0.4560 | −2.22% / −3.03% |
+| Toto-2.0-2.5B | Apache-2.0 | 0.6960 | 0.4760 | −6.29% / −7.10% |
+| Chronos-2 | Apache-2.0 | 0.6980 | 0.4850 | −6.56% / −8.82% |
+
+- Strictly causal zero-leakage evaluation (`−1.61% MASE / −1.34% CRPS` vs `Timestral-209M` ex-Jena), with standout wins on `solar` (−26.3% / −24.3%), `temperature_rain` (−10.5% / −17.1%), `m4_hourly` (−9.0% CRPS), `bizitobs_application` (−2.7% / −7.5%), `kdd_cup_2018` (−4.5% / −5.3%), `loop_seattle` (−3.4% / −4.1%), and `hospital` (−0.9% / −3.0%). Full validated 97-row CSV: [`gift_eval_results.csv`](gift_eval_results.csv).
+
+### Official `fev-bench` (100 / 100 tasks · higher is better ↑)
+
+| Rank | Model | License | SQL Win Rate ↑ | SQL Skill ↑ | MASE Skill ↑ |
+|---:|---|---|---:|---:|---:|
+| **#6** | **⚡ Zitra-Titan-v3** | **Apache-2.0** | **80.2%** | **50.18%** | **39.05%** |
+| #7 | Timestral-209M | *Non-Commercial* | 79.4% | 50.39% | 39.49% |
+| #12 | t0-gamma | Apache-2.0 | 73.8% | 49.42% | 37.99% |
+| #17 | TimesFM-3 | *Non-Commercial* | 67.6% | 48.99% | 37.82% |
+| #23 | Chronos-2 | Apache-2.0 | 57.9% | 47.28% | 35.50% |
+| #25 | Toto-2.0-2.5B | Apache-2.0 | 56.9% | 44.42% | 32.54% |
+
+- Also achieves **54.52% WQL skill** and **79.4% MASE win rate** (**#6 overall across 55 models**, ahead of `Timestral-209M`'s 78.7% at #7). Every model ranked #1–#5 is either a closed API, non-commercial, or custom non-Apache preview.
+- Wins **51 / 100** tasks head-to-head on SQL against `Timestral-209M`, including `past_cov_only` (−3.84%), `epf_de` (−8.37%), `favorita_stores_1W` (−12.28%), `rohlik_sales_1W` (−11.89%), `uk_covid_nation_1W` (−22.61%), and `solar_1W` (−12.92%). Full 100-row CSV: [`fev_bench_results.csv`](fev_bench_results.csv).
 
 ### Real-World Enterprise Retail & Fulfillment Proof (Rohlik, 100% Zero-Shot)
 
@@ -174,20 +190,20 @@ Shipping four heterogeneous foundation architectures in production usually means
 
 ---
 
-## Hardware & Memory Profile
+## Hardware & Runtime Profile
 
-| Metric | Verified Value |
-|---|---:|
-| Checkpoint on disk (`model.safetensors`, `bfloat16`) | **`2.124 GB`** *(single file, 4 architectures)* |
-| Total parameters / Learned router parameters | **`1,061,831,429`** / **`0`** |
-| GPU VRAM (single series / standard inference) | **`3.46 GB`** *(fits any 6–8 GB consumer GPU)* |
-| GPU VRAM (large batch / `16K` context) | `6–12 GB` |
-| B300 Median Latency — Full 4-Expert Pop-Quiz (univariate) | **`122.4 ms`** *(`2.6×` faster than sequential `321 ms`)* |
-| B300 Median Latency — Full Pop-Quiz (known covariates, `H=48`) | **`173.7 ms`** *(PatchTST skipped automatically)* |
-| B300 Median Latency — Single-Pass `fast=True` | **`101.9 ms`** *(cov)* / **`115.1 ms`** *(univariate)* |
-| Singleton vs Batched Invariance (`cross_learning=False`) | **`≤ 2e-5`** max abs diff (`0.0036%` rel) |
-| Context Length | Up to **`16,384`** steps (known covariates) / `8,192` steps (default) |
-| Outputs | Full 21-quantile grid (`0.01 … 0.99`), nonnegative clipping, integer-count snapping |
+| Specification | Value | Details |
+|---|---|---|
+| **Checkpoint size** | **2.12 GB** | Single `bfloat16` `safetensors` file (all 4 architectures) |
+| **Parameters** | **1.06B** | 1,061,831,429 total · 0 learned router weights |
+| **GPU VRAM (standard)** | **3.46 GB** | Fits any 6–8 GB consumer GPU |
+| **GPU VRAM (16K batch)** | **6–12 GB** | Large batches & long-context covariates |
+| **Pop-Quiz latency (univariate)** | **122 ms** | B300 median · 2.6× faster than sequential (321 ms) |
+| **Pop-Quiz latency (covariates)** | **174 ms** | B300 median (H=48) · PatchTST skipped automatically |
+| **Fast-mode latency** | **102–115 ms** | B300 single-pass (`fast=True`) |
+| **Batch invariance** | **≤ 2e-5** | Max abs diff solo vs. batched (0.0036% relative) |
+| **Context length** | **Up to 16,384** | Dynamic RoPE (8,192 default · 16,384 known covariates) |
+| **Outputs** | **21 quantiles** | 0.01–0.99 grid · nonnegative & integer snapping |
 
 ## License & Upstream Attribution
 
