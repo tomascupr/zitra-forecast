@@ -1,7 +1,5 @@
-"""Unified dead-simple user interface for all Zitra v2 checkpoints:
-  - Zitra-Titan-585M (Flagship test-time adaptive multi-prior forecaster)
-  - Zitra-Apex-585M  (Fast single-pass covariate & retail multi-prior forecaster)
-  - Zitra-209M-v2    (Exact 209M drop-in single-backbone Timestral upgrade)
+"""Unified dead-simple user interface for Zitra v3 (100% Pure Apache-2.0):
+  - Zitra-Titan-v3 (Flagship 4-architecture 16K test-time adaptive forecaster)
 """
 
 from __future__ import annotations
@@ -15,7 +13,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-EXPERT_NAMES = ("zitra-209m-v2", "t0-gamma", "chronos-2")
+EXPERT_NAMES = ("t0", "chronos2", "patchtst", "iamtime")
 
 
 @dataclass
@@ -24,7 +22,7 @@ class ZitraForecast:
 
     quantiles: torch.Tensor  # (B, V, H, Q)
     quantile_levels: tuple[float, ...]
-    routing_weights: np.ndarray | None = None  # (B, V, 3) on Zitra-Titan-585M
+    routing_weights: np.ndarray | None = None  # (B, V, 4) on Zitra-Titan-v3
     expert_medians: dict[str, np.ndarray] | None = None  # optional per-expert medians (B, V, H)
 
     @property
@@ -40,8 +38,9 @@ class ZitraForecast:
     def routing_summary(self) -> dict[str, float] | None:
         if self.routing_weights is None:
             return None
-        avg = self.routing_weights.reshape(-1, 3).mean(axis=0)
-        return {name: round(float(val), 4) for name, val in zip(EXPERT_NAMES, avg)}
+        names = tuple(self.expert_medians.keys()) if self.expert_medians else EXPERT_NAMES
+        avg = self.routing_weights.reshape(-1, len(names)).mean(axis=0)
+        return {name: round(float(val), 4) for name, val in zip(names, avg)}
 
 
 def _resolve_checkpoint_dir(repo_id_or_path: str | Path, revision: str | None = None, token: str | None = None) -> Path:
@@ -54,17 +53,21 @@ def _resolve_checkpoint_dir(repo_id_or_path: str | Path, revision: str | None = 
         repo_id=str(repo_id_or_path),
         revision=revision,
         token=token,
-        allow_patterns=["*.json", "*.safetensors", "*.py"],
+        allow_patterns=["*.json", "*.safetensors", "*.py", "_iamtime/*.py"],
     )
     return Path(local_dir)
 
 
 def _detect_variant(ckpt_dir: Path) -> str:
+    if (ckpt_dir / "patchtst_config.json").exists():
+        return "titan_v3"
     frozen_p = ckpt_dir / "frozen.json"
     if frozen_p.exists():
         meta = json.loads(frozen_p.read_text())
         name = str(meta.get("name", "")).lower()
         cls_name = str(meta.get("entrypoint", {}).get("class", "")).lower()
+        if "v3" in name or "zitrav3" in cls_name:
+            return "titan_v3"
         if "titan" in name or "titan" in cls_name:
             return "titan"
         if "apex" in name or "apex" in cls_name:
@@ -79,12 +82,12 @@ def _detect_variant(ckpt_dir: Path) -> str:
 
 
 class ZitraForecaster:
-    """Unified zero-friction loader and predictor for all Zitra v2 models.
+    """Unified zero-friction loader and predictor for Zitra v3 (100% Apache-2.0).
 
     Examples
     --------
     >>> from zitra import ZitraForecaster
-    >>> model = ZitraForecaster.from_pretrained("tomcupr/Zitra-Titan-585M")
+    >>> model = ZitraForecaster.from_pretrained("tomcupr/Zitra-Titan-v3")
     >>> fc = model.forecast(np.cumsum(np.random.randn(256)), prediction_length=48)
     >>> fc.median.shape
     (1, 1, 48)
@@ -105,13 +108,17 @@ class ZitraForecaster:
         revision: str | None = None,
         token: str | None = None,
     ) -> "ZitraForecaster":
-        """Load any Zitra v2 checkpoint from Hugging Face Hub or a local directory."""
+        """Load a Zitra checkpoint from Hugging Face Hub or a local directory."""
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
         ckpt_dir = _resolve_checkpoint_dir(repo_id_or_path, revision=revision, token=token)
         variant = _detect_variant(ckpt_dir)
 
-        if variant == "zitra209":
+        if variant == "titan_v3":
+            from .backends.titan_v3 import ZitraV3Forecaster
+
+            backend = ZitraV3Forecaster.from_pretrained(ckpt_dir, device=device)
+        elif variant == "zitra209":
             from .backends.zitra209 import Zitra209Forecaster
 
             backend = Zitra209Forecaster.from_pretrained(ckpt_dir, device=device)
@@ -139,6 +146,8 @@ class ZitraForecaster:
         known_covariates: Any = None,
         categorical_past_covariates: Any = None,
         categorical_known_covariates: Any = None,
+        cross_learning: str | bool | None = None,
+        fast: bool = False,
     ) -> ZitraForecast:
         """Forecast 1D `(T,)`, 2D `(B, T)`, or 3D `(B, V, T)` numeric context arrays."""
         arr = np.asarray(context, dtype=np.float32) if not isinstance(context, torch.Tensor) else context
@@ -160,9 +169,15 @@ class ZitraForecaster:
             kwargs["categorical_past_covariates"] = categorical_past_covariates
         if categorical_known_covariates is not None:
             kwargs["categorical_known_covariates"] = categorical_known_covariates
+        if cross_learning is not None and self.variant == "titan_v3":
+            kwargs["cross_learning"] = cross_learning
+        if fast and self.variant == "titan_v3":
+            kwargs["fast"] = True
 
         out = self.backend.forecast(arr, prediction_length=int(prediction_length), **kwargs)
         routing_w = getattr(self.backend, "last_routing_weights", None)
+        if routing_w is not None and routing_w.ndim == 2:
+            routing_w = routing_w.reshape(arr.shape[0], arr.shape[1], routing_w.shape[-1])
         expert_med = getattr(self.backend, "last_expert_medians", None)
         return ZitraForecast(
             quantiles=out.quantiles,
@@ -183,9 +198,18 @@ class ZitraForecaster:
         future_df: pd.DataFrame | None = None,
         past_covariate_columns: Sequence[str] | None = None,
         known_covariate_columns: Sequence[str] | None = None,
+        country: str | None = None,
+        country_column: str | None = None,
+        fast: bool = False,
         batch_size: int = 64,
     ) -> pd.DataFrame:
-        """Chronos-2-style DataFrame API returning tidy predictions with timestamps and quantiles."""
+        """Chronos-2-style DataFrame API returning tidy predictions with timestamps and quantiles.
+
+        Pass ``country="CZ"`` (or regional ISO codes like ``"DE-BY"``, ``"DE-BE"``, ``"US-CA"``)
+        or ``country_column="region"`` to automatically synthesize 5 known-future public holiday
+        and calendar covariates (``is_public_holiday``, ``is_pre_holiday``, ``is_post_holiday``,
+        ``dow_sin``, ``dow_cos``) across both history and forecast horizon.
+        """
         work = df.copy()
         if id_column not in work.columns:
             work[id_column] = "series_0"
@@ -205,11 +229,17 @@ class ZitraForecaster:
         if known_cols and fwork is None:
             raise ValueError("`future_df` must be provided when `known_covariate_columns` is specified.")
 
+        use_holidays = (country is not None) or (country_column is not None)
+        if use_holidays:
+            from .holidays import build_holiday_covariates
+
         grouped = list(work.groupby(id_column, sort=False))
         f_groups = dict(list(fwork.groupby(id_column, sort=False))) if fwork is not None else {}
 
         H = int(prediction_length)
         rows_out: list[pd.DataFrame] = []
+        n_hol = 5 if use_holidays else 0
+        n_known_total = len(known_cols) + n_hol
 
         for i0 in range(0, len(grouped), batch_size):
             chunk = grouped[i0 : i0 + batch_size]
@@ -217,7 +247,7 @@ class ZitraForecaster:
             max_t = max(len(g) for _, g in chunk)
             ctx = np.full((B, 1, max_t), np.nan, dtype=np.float32)
             p_cov = np.full((B, len(past_cols), max_t), np.nan, dtype=np.float32) if past_cols else None
-            k_cov = np.full((B, len(known_cols), max_t + H), np.nan, dtype=np.float32) if known_cols else None
+            k_cov = np.full((B, n_known_total, max_t + H), np.nan, dtype=np.float32) if n_known_total > 0 else None
 
             future_ts_list: list[pd.DatetimeIndex] = []
             item_ids: list[Any] = []
@@ -231,27 +261,34 @@ class ZitraForecaster:
                     for ci, col in enumerate(past_cols):
                         p_cov[bi, ci, off:] = g[col].to_numpy(dtype=np.float32)
 
+                ts = pd.DatetimeIndex(g[timestamp_column])
                 fg = f_groups.get(item_id)
                 if fg is not None and len(fg) >= H:
                     fts = pd.DatetimeIndex(fg[timestamp_column].iloc[:H])
                 else:
-                    ts = pd.DatetimeIndex(g[timestamp_column])
                     step = (ts[-1] - ts[-2]) if len(ts) >= 2 else pd.Timedelta(days=1)
                     fts = pd.date_range(start=ts[-1] + step, periods=H, freq=step)
                 future_ts_list.append(fts)
 
-                if k_cov is not None:
+                if known_cols:
                     if fg is None or len(fg) < H:
                         raise ValueError(f"future_df missing {H} rows for {id_column}={item_id!r}")
                     for ci, col in enumerate(known_cols):
                         k_cov[bi, ci, off:max_t] = g[col].to_numpy(dtype=np.float32)
                         k_cov[bi, ci, max_t : max_t + H] = fg[col].iloc[:H].to_numpy(dtype=np.float32)
 
+                if use_holidays:
+                    c_val = str(g[country_column].iloc[-1]) if country_column is not None else str(country)
+                    full_ts = ts.append(fts)
+                    hol_mat = build_holiday_covariates(full_ts, c_val)  # (5, t_len + H)
+                    k_cov[bi, len(known_cols) :, off : max_t + H] = hol_mat
+
             fc = self.forecast(
                 ctx,
                 prediction_length=H,
                 past_covariates=p_cov,
                 known_covariates=k_cov,
+                fast=fast,
             )
 
             for bi, item_id in enumerate(item_ids):
@@ -264,9 +301,10 @@ class ZitraForecaster:
                     rec[f"{q:g}"] = fc.quantile(float(q))[bi, 0]
                 if fc.routing_weights is not None:
                     w = fc.routing_weights[bi, 0]
-                    rec["weight_zitra209"] = float(w[0])
-                    rec["weight_t0"] = float(w[1])
-                    rec["weight_chronos2"] = float(w[2])
+                    names = tuple(fc.expert_medians.keys()) if fc.expert_medians else EXPERT_NAMES
+                    for ei, ename in enumerate(names):
+                        col_key = "weight_" + ename.replace("-", "_")
+                        rec[col_key] = float(w[ei])
                 rows_out.append(pd.DataFrame(rec))
 
         return pd.concat(rows_out, ignore_index=True) if rows_out else pd.DataFrame()

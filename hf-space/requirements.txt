@@ -6,4 +6,7 @@ huggingface-hub>=0.25.0
 plotly>=5.22.0
 tfc-t0[torch]>=0.6.1
 chronos-forecasting>=2.0.0
+granite-tsfm>=0.3.9
+holidays>=0.58
+einops>=0.7.0
 zitra-forecast @ git+https://github.com/tomascupr/zitra-forecast.git

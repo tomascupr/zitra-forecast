@@ -1,0 +1,41 @@
+Zitra v3 (Zitra-Titan-v3 / zitra-forecast)
+Copyright 2026 Tomas Cupr
+
+This product is licensed under the Apache License, Version 2.0 and includes
+or derives from the following open-source components:
+
+1. t0-gamma (theforecastingcompany/t0-gamma)
+   - License: Apache License, Version 2.0
+   - Source: https://huggingface.co/theforecastingcompany/t0-gamma
+   - Modifications: Dynamic RoPE context extension (scale_base=512/1536/2048)
+     and full-depth algebraically-folded FullLoRA post-training soup
+     (Zitra-t0-256M-Dyn32K) bundled under the `t0.*` tensor prefix.
+
+2. Chronos-2 (amazon/chronos-2)
+   - License: Apache License, Version 2.0
+   - Source: https://huggingface.co/amazon/chronos-2
+   - Modifications: Full-depth covariate-trained algebraically-folded FullLoRA
+     post-training soup (Zitra-Chronos2-120M) bundled under the `chronos.*`
+     tensor prefix.
+
+3. Granite Time Series PatchTST-FM-r2 (ibm-granite/granite-timeseries-patchtst-fm-r2)
+   - License: Apache License, Version 2.0 (selected under IBM's dual Apache-2.0 /
+     OpenMDW-1.0 distribution)
+   - Source: https://huggingface.co/ibm-granite/granite-timeseries-patchtst-fm-r2
+   - Modifications: Full-depth algebraically-folded FullLoRA post-training soup
+     (Zitra-PatchTST-385M) bundled under the `patchtst.*` tensor prefix.
+
+4. iAmTime (anishsaha/iAmTime-base-forecast)
+   - License: Apache License, Version 2.0
+   - Authors: Anish Saha, Konstantin Shmakov (Walmart)
+   - Source: https://huggingface.co/anishsaha/iAmTime-base-forecast
+   - Code: https://github.com/anishsaha12/iAmTime (arXiv:2603.22586)
+   - Usage: Exact bfloat16 weights bundled under the `iamtime.*` tensor prefix;
+     vendored Apache-2.0 inference modules in `zitra/backends/_iamtime/` with
+     transformers 4.x & 5.x RoPE/quantile buffer compatibility.
+
+5. python-holidays (holidays)
+   - License: MIT License
+   - Source: https://github.com/vacanza/holidays
+   - Usage: Opt-in built-in public holiday & calendar known-future covariate
+     generation via `predict_df(..., country=...)`.

@@ -4,33 +4,34 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zitra-forecast"
-version = "0.2.0"
-description = "Zitra v2: State-of-the-art probabilistic time-series foundation models (Zitra-Titan-585M, Zitra-Apex-585M, Zitra-209M-v2)."
+version = "0.3.0"
+description = "Zitra v3: 100% Apache-2.0 Test-Time Adaptive Probabilistic Time-Series Foundation Model with Built-In Public Holiday Covariates."
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "Modified MIT + Apache-2.0 components"}
-keywords = ["time-series", "forecasting", "foundation-model", "probabilistic-forecasting", "pytorch"]
+license = {text = "Apache-2.0"}
+keywords = ["time-series", "forecasting", "foundation-model", "probabilistic-forecasting", "pytorch", "apache-2.0"]
 dependencies = [
     "torch>=2.4.0",
     "numpy>=1.26.0",
     "pandas>=2.1.0",
     "safetensors>=0.4.3",
     "huggingface-hub>=0.25.0",
-    "timestral @ git+https://github.com/mistralai/timestral.git",
+    "tfc-t0[torch]>=0.6.1",
+    "chronos-forecasting>=2.0.0",
+    "granite-tsfm>=0.3.9",
+    "einops>=0.7.0",
+    "holidays>=0.58",
 ]
 
 [project.optional-dependencies]
-multi-prior = [
-    "tfc-t0[torch]>=0.6.1",
-    "chronos-forecasting>=2.0.0",
+demo = [
+    "gradio>=5.0.0",
+    "plotly>=5.22.0",
+]
+v2 = [
+    "timestral @ git+https://github.com/mistralai/timestral.git",
 ]
 all = [
-    "tfc-t0[torch]>=0.6.1",
-    "chronos-forecasting>=2.0.0",
-]
-demo = [
-    "tfc-t0[torch]>=0.6.1",
-    "chronos-forecasting>=2.0.0",
     "gradio>=5.0.0",
     "plotly>=5.22.0",
 ]

@@ -1,5 +1,5 @@
 ---
-title: Zitra v2 — Live Adaptive Time-Series Forecasting
+title: Zitra v3 — Live Apache-2.0 Adaptive Forecasting
 emoji: ⚡
 colorFrom: yellow
 colorTo: indigo
@@ -9,9 +9,10 @@ python_version: 3.12
 app_file: app.py
 suggested_hardware: zero-a10g
 pinned: true
-short_description: Watch Zitra-Titan-585M quiz 3 foundation brains live
+license: apache-2.0
+short_description: 100% Apache-2.0 4-architecture TSFM with built-in public holidays
 ---
 
-# ⚡ Zitra v2 Interactive Demo
+# ⚡ Zitra v3 Interactive Demo (100% Apache-2.0)
 
-Upload any CSV (or click a 1-click preset) and watch **Zitra-Titan-585M** run live causal pop-quizzes across three foundation priors (**Zitra-209M-v2**, **t0-gamma**, and **Chronos-2**), compute exact posterior expert weights on *your* data, and invert the **Linear-Pool Mixture CDF** for state-of-the-art probabilistic forecasts.
+Upload any CSV (or click a 1-click preset) and watch **Zitra-Titan-v3** run live causal pop-quizzes across four genuinely orthogonal Apache-2.0 foundation priors (**Zitra-t0-256M-Dyn32K**, **Zitra-Chronos2-120M**, **Zitra-PatchTST-385M**, and **iAmTime-302M**), automatically handle public holidays across 240+ countries & regions, and invert their exact **Linear-Pool Mixture CDF**.

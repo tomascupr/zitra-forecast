@@ -1,8 +1,8 @@
-"""Minimal official GIFT-Eval replication script for Zitra v2 checkpoints.
+"""Minimal official GIFT-Eval replication script for Zitra v3 (100% Pure Apache-2.0).
 
 Usage:
-    pip install "zitra-forecast[all] @ git+https://github.com/tomascupr/zitra-forecast.git" gift-eval
-    GIFT_EVAL=/path/to/gift_eval python gift_eval.py --model rohlik/Zitra-Titan-585M --out all_results.csv
+    pip install "zitra-forecast @ git+https://github.com/tomascupr/zitra-forecast.git" gift-eval
+    GIFT_EVAL=/path/to/gift_eval python gift_eval.py --model tomcupr/Zitra-Titan-v3
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ import numpy as np
 from gluonts.ev.metrics import MAE, MAPE, MASE, MSE, MSIS, ND, NRMSE, RMSE, SMAPE, MeanWeightedSumQuantileLoss
 from gluonts.model.evaluation import evaluate_model
 from gluonts.model.forecast import QuantileForecast
+from gluonts.time_feature import get_seasonality
 from gift_eval.data import Dataset
 from zitra import ZitraForecaster
 
@@ -69,7 +70,7 @@ class ZitraGluonTSPredictor:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", default="tomcupr/Zitra-Titan-585M")
+    ap.add_argument("--model", default="tomcupr/Zitra-Titan-v3")
     ap.add_argument("--batch-size", type=int, default=48)
     ap.add_argument("--dataset", default="m4_hourly")
     ap.add_argument("--term", default="short")
@@ -85,7 +86,7 @@ def main():
         axis=None,
         mask_invalid_label=True,
         allow_nan_forecast=False,
-        seasonality=ds.freq,
+        seasonality=get_seasonality(ds.freq),
     )
     print(f"{args.dataset}/{args.term}: MASE={res['MASE[0.5]'].iloc[0]:.4f} CRPS={res['mean_weighted_sum_quantile_loss'].iloc[0]:.4f}")
 

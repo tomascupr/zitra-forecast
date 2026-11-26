@@ -1,12 +1,15 @@
-"""Interactive Hugging Face Space Demo for the Zitra v2 Forecasting Suite.
+"""Interactive Hugging Face Space Demo for Zitra v3 (100% Pure Apache-2.0).
 
 Features:
-  - 1-click real-world presets (E-Commerce Daily Demand, Solar Generation, Hourly Fulfillment Orders,
-    Cloud Latency Telemetry, City Bike Counts) OR upload any custom CSV.
-  - Switch seamlessly between Zitra-Titan-585M, Zitra-Apex-585M, and Zitra-209M-v2.
-  - Optional holdout backtest toggle to compare Zitra directly against ground truth & Stock Timestral-209M!
-  - Live visualization of Zitra-Titan-585M's causal Bayesian expert weights [Zitra-209M-v2, t0-gamma, Chronos-2]
-    and individual foundation model medians alongside the Mixture-CDF probabilistic forecast cone.
+  - 1-click real-world presets (Grocery Daily Orders with Public Holidays, Hourly Fulfillment Center,
+    Solar PV Generation, Cloud CPU Telemetry, City Bike Counts) OR upload any custom CSV.
+  - Built-in Opt-In Public Holiday & Calendar Covariates for 240+ countries & regional subdivisions
+    (CZ, DE-BY, DE-BE, AT, HU, RO, US, GB, etc.) — watch how turning holidays ON automatically
+    shifts Pop-Quiz routing 100% onto covariate-native Zitra-t0 + Zitra-Chronos2!
+  - Optional holdout backtest toggle to score live MAE/WAPE against ground truth & Stock t0-gamma.
+  - Live visualization of Zitra-Titan-v3's causal Bayesian expert weights
+    [Zitra-t0-256M, Zitra-Chronos2-120M, Zitra-PatchTST-385M] and individual foundation medians
+    alongside the Linear-Pool Mixture-CDF probabilistic forecast cone.
 """
 
 from __future__ import annotations
@@ -31,32 +34,57 @@ except ImportError:  # local execution fallback
 
     spaces = _DummySpaces()
 
-from zitra import ZitraForecaster
+from zitra import ZitraForecaster, build_holiday_covariates
 
 HF_ORG = os.environ.get("ZITRA_HF_ORG", "tomcupr")
-MODEL_REPOS = {
-    "Zitra-Titan-585M (Flagship Adaptive)": f"{HF_ORG}/Zitra-Titan-585M",
-    "Zitra-Apex-585M (Fast Covariate 3-Prior)": f"{HF_ORG}/Zitra-Apex-585M",
-    "Zitra-209M-v2 (1.00x Speed Drop-In)": f"{HF_ORG}/Zitra-209M-v2",
-}
+DEFAULT_REPO = os.environ.get("ZITRA_V3_REPO", f"{HF_ORG}/Zitra-Titan-v3")
 
 EXPERT_COLORS = {
-    "zitra-209m-v2": "#4f46e5",
-    "t0-gamma": "#f59e0b",
-    "chronos-2": "#10b981",
+    "t0": "#4f46e5",
+    "chronos2": "#10b981",
+    "patchtst": "#f59e0b",
+    "iamtime": "#ec4899",
+    "zitra-t0-256m": "#4f46e5",
+    "zitra-chronos2-120m": "#10b981",
+    "zitra-patchtst-385m": "#f59e0b",
 }
+
+EXPERT_LABELS = {
+    "t0": "Zitra-t0-256M-Dyn32K\n(Patch Decoder · Apache-2.0)",
+    "chronos2": "Zitra-Chronos2-120M\n(T5 Encoder · Apache-2.0)",
+    "patchtst": "Zitra-PatchTST-385M\n(30L Conformer · Apache-2.0)",
+    "iamtime": "iAmTime-302M\n(T5 4-MoE · Apache-2.0)",
+    "zitra-t0-256m": "Zitra-t0-256M\n(Patch Decoder · Apache-2.0)",
+    "zitra-chronos2-120m": "Zitra-Chronos2-120M\n(T5 Encoder · Apache-2.0)",
+    "zitra-patchtst-385m": "Zitra-PatchTST-385M\n(30L Conformer · Apache-2.0)",
+}
+
+COUNTRY_CHOICES = [
+    ("Off (No holiday covariates)", "NONE"),
+    ("Czechia (CZ)", "CZ"),
+    ("Germany — Bavaria / Munich (DE-BY)", "DE-BY"),
+    ("Germany — Berlin (DE-BE)", "DE-BE"),
+    ("Germany — Hesse / Frankfurt (DE-HE)", "DE-HE"),
+    ("Austria (AT)", "AT"),
+    ("Hungary (HU)", "HU"),
+    ("Romania (RO)", "RO"),
+    ("United States (US)", "US"),
+    ("United Kingdom (GB)", "GB"),
+]
 
 
 def make_preset(name: str) -> pd.DataFrame:
     rng = np.random.default_rng(2026)
-    if name == "E-Commerce Daily Orders (Weekly + Promo Spikes)":
-        n = 365
-        ts = pd.date_range("2025-11-01", periods=n, freq="D")
+    if name == "Grocery Daily Orders (Czech Public Holidays + Weekly Cycle)":
+        n = 420
+        ts = pd.date_range("2025-10-01", periods=n, freq="D")
         t = np.arange(n)
-        dow = np.array([1.08, 0.94, 0.92, 0.97, 1.15, 1.24, 0.88])[t % 7]
-        trend = 4200 + 3.2 * t + 320 * np.sin(2 * np.pi * t / 365.0)
-        promos = ((t % 30 == 0) | (t % 30 == 1)).astype(float) * 780
-        y = np.maximum(50, np.round(trend * dow + promos + rng.normal(0, 140, n)))
+        dow = np.array([1.10, 0.94, 0.92, 0.98, 1.18, 1.26, 0.86])[t % 7]
+        trend = 14500 + 8.5 * t + 950 * np.sin(2 * np.pi * t / 365.0)
+        hol = build_holiday_covariates(ts, "CZ")
+        # Realistic grocery holiday pattern: huge pre-holiday surge, sharp holiday dip, post-holiday rebound
+        hol_mult = 1.0 - 0.38 * hol[0] + 0.24 * hol[1] + 0.08 * hol[2]
+        y = np.maximum(500, np.round(trend * dow * hol_mult + rng.normal(0, 320, n)))
         return pd.DataFrame({"timestamp": ts, "value": y})
 
     if name == "Solar PV Generation (Hourly Diurnal + Cloud Shifts)":
@@ -100,18 +128,18 @@ def make_preset(name: str) -> pd.DataFrame:
     return pd.DataFrame({"timestamp": ts, "value": y})
 
 
-@lru_cache(maxsize=4)
+@lru_cache(maxsize=2)
 def get_model(repo_id: str) -> ZitraForecaster:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     return ZitraForecaster.from_pretrained(repo_id, device=device)
 
 
 @lru_cache(maxsize=1)
-def get_stock_timestral():
-    from timestral import TimestralForecaster
+def get_stock_t0():
+    from t0 import T0Forecaster
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    return TimestralForecaster.from_pretrained("mistralai/Timestral-209M", device=device)
+    return T0Forecaster.from_pretrained("theforecastingcompany/t0-gamma").to(device).eval()
 
 
 def _parse_input(preset_name: str, csv_file) -> tuple[pd.DataFrame, str, str]:
@@ -139,10 +167,10 @@ def _parse_input(preset_name: str, csv_file) -> tuple[pd.DataFrame, str, str]:
 def run_demo(
     preset_name: str,
     csv_file,
-    model_choice: str,
+    country_code: str,
     horizon: int,
     eval_holdout: bool,
-    compare_timestral: bool,
+    compare_stock_t0: bool,
     show_experts: bool,
 ):
     df, val_col, label = _parse_input(preset_name, csv_file)
@@ -165,12 +193,23 @@ def run_demo(
             future_x = np.arange(len(hist_df), len(hist_df) + H)
 
     ctx = hist_df["value"].to_numpy(dtype=np.float32)
-    repo_id = MODEL_REPOS[model_choice]
 
-    t0 = time.perf_counter()
-    model = get_model(repo_id)
-    fc = model.forecast(ctx, prediction_length=H)
-    latency_ms = (time.perf_counter() - t0) * 1000.0
+    known_cov = None
+    holiday_note = "Off"
+    if country_code and country_code != "NONE":
+        ts_hist = hist_df["timestamp"]
+        if pd.api.types.is_datetime64_any_dtype(ts_hist):
+            full_ts = pd.DatetimeIndex(ts_hist).append(pd.DatetimeIndex(future_x))
+            known_cov = build_holiday_covariates(full_ts, country_code)[None, :, :]  # (1, 5, T+H)
+            n_fut_hol = int(known_cov[0, 0, len(ctx) :].sum())
+            holiday_note = f"`{country_code}` (5 calendar/holiday channels · {n_fut_hol} holiday steps in horizon)"
+        else:
+            holiday_note = "Ignored (series has no datetime timestamps)"
+
+    t0_s = time.perf_counter()
+    model = get_model(DEFAULT_REPO)
+    fc = model.forecast(ctx, prediction_length=H, known_covariates=known_cov)
+    latency_ms = (time.perf_counter() - t0_s) * 1000.0
 
     med = fc.median[0, 0]
     q10, q20, q80, q90 = fc.quantile(0.1)[0, 0], fc.quantile(0.2)[0, 0], fc.quantile(0.8)[0, 0], fc.quantile(0.9)[0, 0]
@@ -189,7 +228,22 @@ def run_demo(
         )
     )
 
-    # 10-90% uncertainty band
+    # Shade public holidays in horizon when enabled
+    if known_cov is not None and pd.api.types.is_datetime64_any_dtype(hist_df["timestamp"]):
+        fut_hol_flags = known_cov[0, 0, len(ctx) :]
+        for idx_h, flag in enumerate(fut_hol_flags):
+            if flag > 0.5:
+                t_val = pd.Timestamp(future_x.iloc[idx_h] if hasattr(future_x, "iloc") else future_x[idx_h])
+                fig.add_vrect(
+                    x0=t_val - pd.Timedelta(hours=10),
+                    x1=t_val + pd.Timedelta(hours=10),
+                    fillcolor="rgba(239, 68, 68, 0.12)",
+                    line_width=0,
+                    annotation_text="Holiday",
+                    annotation_position="top left",
+                    annotation_font_size=9,
+                )
+
     fig.add_trace(
         go.Scatter(
             x=list(future_x) + list(future_x)[::-1],
@@ -201,7 +255,6 @@ def run_demo(
             hoverinfo="skip",
         )
     )
-    # 20-80% uncertainty band
     fig.add_trace(
         go.Scatter(
             x=list(future_x) + list(future_x)[::-1],
@@ -214,47 +267,69 @@ def run_demo(
         )
     )
 
-    # Individual expert medians (Zitra-Titan-585M transparency!)
     if show_experts and fc.expert_medians:
+        routing_summary = fc.routing_summary() or {}
         for exp_name, exp_med in fc.expert_medians.items():
+            if routing_summary.get(exp_name, 1.0) < 1e-4:
+                continue  # skip gated-off univariate expert on known-holiday/short regimes
             fig.add_trace(
                 go.Scatter(
                     x=future_x,
                     y=exp_med[0, 0],
                     mode="lines",
                     name=f"Expert: {exp_name}",
-                    line=dict(color=EXPERT_COLORS.get(exp_name, "#6b7280"), width=1.4, dash="dot"),
+                    line=dict(color=EXPERT_COLORS.get(exp_name, "#6b7280"), width=1.5, dash="dot"),
                     opacity=0.85,
                 )
             )
 
-    # Zitra median forecast
     fig.add_trace(
         go.Scatter(
             x=future_x,
             y=med,
             mode="lines",
-            name=f"{model_choice.split(' (')[0]} (Median)",
+            name="Zitra-Titan-v3 (Median)",
             line=dict(color="#4f46e5", width=3.0),
         )
     )
 
     metrics_lines = [
-        f"**Model:** `{repo_id}`  |  **Series:** `{label}` (`{len(ctx)}` steps → `{H}` steps)  |  **Inference:** `{latency_ms:.0f} ms`"
+        f"**Model:** `{DEFAULT_REPO}` *(100% Apache-2.0)*  |  **Series:** `{label}` (`{len(ctx)}` → `{H}`)  |  **Holidays:** {holiday_note}  |  **Inference:** `{latency_ms:.0f} ms`"
     ]
 
-    # Optional comparison vs Stock Timestral-209M
     stock_med = None
-    if compare_timestral:
-        st_model = get_stock_timestral()
-        st_fc = st_model.forecast(ctx[None, None, :], prediction_length=H)
-        stock_med = st_fc.median[0, 0].detach().cpu().float().numpy()
+    if compare_stock_t0:
+        from t0 import TimeSeries, batch_series
+
+        st_model = get_stock_t0()
+        device = next(st_model.parameters()).device
+        with torch.inference_mode():
+            if known_cov is not None:
+                ts_in = TimeSeries.from_array(
+                    torch.from_numpy(ctx[None, None, :]),
+                    future_covariates=torch.from_numpy(known_cov),
+                    horizon=H,
+                )
+                batch = TimeSeries.batch([ts_in]).to(device)
+                st_out = st_model.predict(
+                    batch, horizon=H, context_length=batch.seq_len - H,
+                    quantile_levels=[0.5], trim_leading_missing=True, symmetric_averaging=True,
+                    clip_nonnegative=True, snap_integers=True,
+                ).quantiles.float()
+            else:
+                arr, mask, ids = batch_series([torch.from_numpy(ctx[None, :])])
+                st_out = st_model.predict(
+                    arr.to(device), horizon=H, mask=mask.to(device), group_ids=ids.to(device),
+                    quantile_levels=[0.5], trim_leading_missing=True, symmetric_averaging=True,
+                    clip_nonnegative=True, snap_integers=True,
+                ).quantiles.float()
+        stock_med = st_out.reshape(H).detach().cpu().numpy()
         fig.add_trace(
             go.Scatter(
                 x=future_x,
                 y=stock_med,
                 mode="lines",
-                name="Stock Timestral-209M",
+                name="Stock t0-gamma (Apache-2.0)",
                 line=dict(color="#ef4444", width=2.0, dash="dash"),
             )
         )
@@ -273,12 +348,12 @@ def run_demo(
         )
         z_mae = float(np.mean(np.abs(y_true - med)))
         z_wape = float(np.sum(np.abs(y_true - med)) / max(np.sum(np.abs(y_true)), 1e-8)) * 100.0
-        line = f"**Holdout Error ({H} steps):** Zitra MAE = `{z_mae:.3f}` · WAPE = `{z_wape:.2f}%`"
+        line = f"**Holdout Error ({H} steps):** Zitra-v3 MAE = `{z_mae:.3f}` · WAPE = `{z_wape:.2f}%`"
         if stock_med is not None:
             s_mae = float(np.mean(np.abs(y_true - stock_med)))
             s_wape = float(np.sum(np.abs(y_true - stock_med)) / max(np.sum(np.abs(y_true)), 1e-8)) * 100.0
             delta = (z_mae / max(s_mae, 1e-8) - 1.0) * 100.0
-            line += f"  |  Stock Timestral MAE = `{s_mae:.3f}` · WAPE = `{s_wape:.2f}%`  (**{delta:+.1f}% vs Stock**)"
+            line += f"  |  Stock t0-gamma MAE = `{s_mae:.3f}` · WAPE = `{s_wape:.2f}%`  (**{delta:+.1f}% vs Stock**)"
         metrics_lines.append(line)
 
     fig.update_layout(
@@ -291,13 +366,13 @@ def run_demo(
         hovermode="x unified",
     )
 
-    # Build Live Expert Routing Weights bar chart (Zitra-Titan-585M signature feature!)
     routing_summary = fc.routing_summary()
     w_fig = go.Figure()
     if routing_summary is not None:
-        names = ["Zitra-209M-v2\n(Folded 24L LoRA)", "t0-gamma\n(Patch Decoder)", "Chronos-2\n(Encoder-Only)"]
-        vals = [routing_summary["zitra-209m-v2"] * 100, routing_summary["t0-gamma"] * 100, routing_summary["chronos-2"] * 100]
-        colors = [EXPERT_COLORS["zitra-209m-v2"], EXPERT_COLORS["t0-gamma"], EXPERT_COLORS["chronos-2"]]
+        keys = list(routing_summary.keys())
+        names = [EXPERT_LABELS.get(k, k) for k in keys]
+        vals = [routing_summary[k] * 100.0 for k in keys]
+        colors = [EXPERT_COLORS.get(k, "#6b7280") for k in keys]
         w_fig.add_trace(
             go.Bar(
                 x=vals,
@@ -308,25 +383,15 @@ def run_demo(
                 textposition="outside",
             )
         )
+        title_suffix = " · Holiday Gate Active (100% Covariate-Native)" if known_cov is not None else ""
         w_fig.update_layout(
-            title="Live Causal Pop-Quiz Posterior Weights (Zitra-Titan-585M)",
+            title=f"Live Causal Pop-Quiz Posterior Weights{title_suffix}",
             template="plotly_white",
             height=220,
-            margin=dict(l=20, r=40, t=45, b=20),
-            xaxis=dict(range=[0, 108], title="Mixture-CDF Weight (%)"),
+            margin=dict(l=20, r=45, t=45, b=20),
+            xaxis=dict(range=[0, 110], title="Linear-Pool Mixture-CDF Weight (%)"),
             yaxis=dict(autorange="reversed"),
         )
-    else:
-        w_fig.add_annotation(
-            text="Live causal pop-quiz routing weights are shown when Zitra-Titan-585M is selected.",
-            xref="paper",
-            yref="paper",
-            x=0.5,
-            y=0.5,
-            showarrow=False,
-            font=dict(size=14, color="#6b7280"),
-        )
-        w_fig.update_layout(template="plotly_white", height=180, xaxis_visible=False, yaxis_visible=False)
 
     out_df = pd.DataFrame(
         {
@@ -339,39 +404,39 @@ def run_demo(
     return fig, w_fig, "\n\n".join(metrics_lines), out_df
 
 
-with gr.Blocks(theme=gr.themes.Soft(primary_hue="indigo", neutral_hue="slate"), title="Zitra v2 Live Demo") as demo:
+with gr.Blocks(theme=gr.themes.Soft(primary_hue="indigo", neutral_hue="slate"), title="Zitra v3 Live Demo (Apache-2.0)") as demo:
     gr.Markdown(
         """
-        # ⚡ Zitra v2 — Test-Time Adaptive Time-Series Foundation Models
-        **0.6443 MASE / 0.4352 WQL on Official GIFT-Eval** · **Wins every slice of FEV-Bench** · **Zero-overlap open weights**
+        # ⚡ Zitra v3 — 100% Apache-2.0 Test-Time Adaptive Time-Series Foundation Model
+        **Zero commercial restrictions (Apache-2.0)** · **4 orthogonal architectures (Patch Decoder + T5 Encoder + 30L Conformer + T5 4-MoE)** · **Built-in Public Holidays for 240+ countries**
 
-        Pick a real-world preset or drop in your own CSV to watch **Zitra-Titan-585M** run live causal pop-quizzes across three foundation priors (**Zitra-209M-v2**, **t0-gamma**, and **Chronos-2**) and invert their exact **Linear-Pool Mixture CDF**.
+        Pick a preset or upload any CSV to watch **Zitra-Titan-v3** quiz all four Apache-2.0 foundation priors on your series in real time and invert their exact **Linear-Pool Mixture CDF**. Toggle **Public Holiday Covariates** on the Grocery preset to watch the router automatically shift 100% onto covariate-native experts!
         """
     )
 
     with gr.Row():
         with gr.Column(scale=1):
-            model_choice = gr.Dropdown(
-                choices=list(MODEL_REPOS.keys()),
-                value="Zitra-Titan-585M (Flagship Adaptive)",
-                label="Model",
-            )
             preset_name = gr.Dropdown(
                 choices=[
-                    "E-Commerce Daily Orders (Weekly + Promo Spikes)",
-                    "Solar PV Generation (Hourly Diurnal + Cloud Shifts)",
+                    "Grocery Daily Orders (Czech Public Holidays + Weekly Cycle)",
                     "Fulfillment Center Hourly Pick Volume",
+                    "Solar PV Generation (Hourly Diurnal + Cloud Shifts)",
                     "Cloud CPU Utilization (Regime Shift + Burstiness)",
                     "City Bike Counts (Integer Nonnegative)",
                 ],
-                value="E-Commerce Daily Orders (Weekly + Promo Spikes)",
+                value="Grocery Daily Orders (Czech Public Holidays + Weekly Cycle)",
                 label="1-Click Sample Series",
             )
             csv_file = gr.File(label="Or Upload Your Own CSV (timestamp + numeric target)", file_types=[".csv"])
-            horizon = gr.Slider(minimum=12, maximum=192, step=12, value=48, label="Forecast Horizon (steps)")
+            country_code = gr.Dropdown(
+                choices=COUNTRY_CHOICES,
+                value="CZ",
+                label="Built-In Public Holiday Covariates (Optional)",
+            )
+            horizon = gr.Slider(minimum=7, maximum=168, step=7, value=28, label="Forecast Horizon (steps)")
             eval_holdout = gr.Checkbox(value=True, label="Hold out last H points to score live accuracy")
-            compare_timestral = gr.Checkbox(value=False, label="Overlay Stock Timestral-209M baseline")
-            show_experts = gr.Checkbox(value=True, label="Show individual expert medians (Titan)")
+            compare_stock_t0 = gr.Checkbox(value=True, label="Overlay Stock t0-gamma (Apache-2.0) baseline")
+            show_experts = gr.Checkbox(value=True, label="Show individual Zitra-v3 expert medians")
             run_btn = gr.Button("⚡ Forecast Now", variant="primary", size="lg")
 
         with gr.Column(scale=2):
@@ -383,7 +448,7 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="indigo", neutral_hue="slate"), 
 
     run_btn.click(
         fn=run_demo,
-        inputs=[preset_name, csv_file, model_choice, horizon, eval_holdout, compare_timestral, show_experts],
+        inputs=[preset_name, csv_file, country_code, horizon, eval_holdout, compare_stock_t0, show_experts],
         outputs=[main_plot, weights_plot, summary_md, out_table],
     )
 

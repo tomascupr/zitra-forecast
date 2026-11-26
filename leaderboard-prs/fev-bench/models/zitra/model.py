@@ -1,4 +1,4 @@
-"""Official autogluon/fev ForecastingModel wrapper for the Zitra v2 family."""
+"""Official autogluon/fev ForecastingModel wrapper for Zitra v3 (100% Pure Apache-2.0)."""
 
 from __future__ import annotations
 
@@ -72,10 +72,10 @@ class Item:
 
 
 class ZitraModel(fev.ForecastingModel):
-    """Zitra v2 forecasting family (https://github.com/tomascupr/zitra-forecast).
+    """Zitra v3 forecasting model (100% Apache-2.0, https://github.com/tomascupr/zitra-forecast).
 
-    Supports Zitra-Titan-585M, Zitra-Apex-585M, and Zitra-209M-v2 via the unified
-    `zitra.ZitraForecaster` API with multivariate targets plus past and known-future covariates.
+    Supports Zitra-Titan-v3 via the unified `zitra.ZitraForecaster` API with multivariate targets
+    plus past and known-future covariates (up to 16,384 context on known covariates).
     """
 
     model_name = "zitra"
@@ -83,7 +83,7 @@ class ZitraModel(fev.ForecastingModel):
 
     def __init__(
         self,
-        model_path: str = "tomcupr/Zitra-Titan-585M",
+        model_path: str = "tomcupr/Zitra-Titan-v3",
         device: str = "auto",
         batch_budget: int = 2**21,
         max_batch_size: int = 64,
