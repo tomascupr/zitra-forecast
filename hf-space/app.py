@@ -8,8 +8,8 @@ Features:
     shifts Pop-Quiz routing 100% onto covariate-native Zitra-t0 + Zitra-Chronos2!
   - Optional holdout backtest toggle to score live MAE/WAPE against ground truth & Stock t0-gamma.
   - Live visualization of Zitra-Titan-v3's causal Bayesian expert weights
-    [Zitra-t0-256M, Zitra-Chronos2-120M, Zitra-PatchTST-385M] and individual foundation medians
-    alongside the Linear-Pool Mixture-CDF probabilistic forecast cone.
+    [Zitra-t0-256M-Dyn32K, Zitra-Chronos2-120M, Zitra-PatchTST-385M, iAmTime-302M] and individual
+    foundation medians alongside the Linear-Pool Mixture-CDF probabilistic forecast cone.
 """
 
 from __future__ import annotations
@@ -163,6 +163,21 @@ def _parse_input(preset_name: str, csv_file) -> tuple[pd.DataFrame, str, str]:
     return make_preset(preset_name), "value", preset_name
 
 
+def _serialize_x(seq) -> list:
+    """Convert DatetimeIndex / Timestamp / numpy scalars into JSON-safe Plotly x-axis values."""
+    vals = list(seq)
+    if not vals:
+        return []
+    first = vals[0]
+    if isinstance(first, (pd.Timestamp, np.datetime64)):
+        return [pd.Timestamp(v).isoformat() for v in vals]
+    if isinstance(first, (np.integer, int)):
+        return [int(v) for v in vals]
+    if isinstance(first, (np.floating, float)):
+        return [float(v) for v in vals]
+    return [str(v) for v in vals]
+
+
 @spaces.GPU(duration=60)
 def run_demo(
     preset_name: str,
@@ -172,6 +187,7 @@ def run_demo(
     eval_holdout: bool,
     compare_stock_t0: bool,
     show_experts: bool,
+    fast_mode: bool = False,
 ):
     df, val_col, label = _parse_input(preset_name, csv_file)
     H = int(horizon)
@@ -208,20 +224,22 @@ def run_demo(
 
     t0_s = time.perf_counter()
     model = get_model(DEFAULT_REPO)
-    fc = model.forecast(ctx, prediction_length=H, known_covariates=known_cov)
+    fc = model.forecast(ctx, prediction_length=H, known_covariates=known_cov, fast=bool(fast_mode))
     latency_ms = (time.perf_counter() - t0_s) * 1000.0
 
     med = fc.median[0, 0]
     q10, q20, q80, q90 = fc.quantile(0.1)[0, 0], fc.quantile(0.2)[0, 0], fc.quantile(0.8)[0, 0], fc.quantile(0.9)[0, 0]
 
-    # Build main interactive forecast plot
+    # Build main interactive forecast plot using strictly JSON-serializable x/y lists
     fig = go.Figure()
     hist_view = hist_df.iloc[-min(len(hist_df), max(H * 4, 160)) :]
+    hist_x_plot = _serialize_x(hist_view["timestamp"])
+    future_x_plot = _serialize_x(future_x)
 
     fig.add_trace(
         go.Scatter(
-            x=hist_view["timestamp"],
-            y=hist_view["value"],
+            x=hist_x_plot,
+            y=hist_view["value"].astype(float).tolist(),
             mode="lines",
             name="Historical Data",
             line=dict(color="#111827", width=2.2),
@@ -235,8 +253,8 @@ def run_demo(
             if flag > 0.5:
                 t_val = pd.Timestamp(future_x.iloc[idx_h] if hasattr(future_x, "iloc") else future_x[idx_h])
                 fig.add_vrect(
-                    x0=t_val - pd.Timedelta(hours=10),
-                    x1=t_val + pd.Timedelta(hours=10),
+                    x0=(t_val - pd.Timedelta(hours=10)).isoformat(),
+                    x1=(t_val + pd.Timedelta(hours=10)).isoformat(),
                     fillcolor="rgba(239, 68, 68, 0.12)",
                     line_width=0,
                     annotation_text="Holiday",
@@ -246,8 +264,8 @@ def run_demo(
 
     fig.add_trace(
         go.Scatter(
-            x=list(future_x) + list(future_x)[::-1],
-            y=list(q90) + list(q10)[::-1],
+            x=future_x_plot + future_x_plot[::-1],
+            y=q90.astype(float).tolist() + q10.astype(float).tolist()[::-1],
             fill="toself",
             fillcolor="rgba(79, 70, 229, 0.14)",
             line=dict(color="rgba(255,255,255,0)"),
@@ -257,8 +275,8 @@ def run_demo(
     )
     fig.add_trace(
         go.Scatter(
-            x=list(future_x) + list(future_x)[::-1],
-            y=list(q80) + list(q20)[::-1],
+            x=future_x_plot + future_x_plot[::-1],
+            y=q80.astype(float).tolist() + q20.astype(float).tolist()[::-1],
             fill="toself",
             fillcolor="rgba(79, 70, 229, 0.25)",
             line=dict(color="rgba(255,255,255,0)"),
@@ -274,8 +292,8 @@ def run_demo(
                 continue  # skip gated-off univariate expert on known-holiday/short regimes
             fig.add_trace(
                 go.Scatter(
-                    x=future_x,
-                    y=exp_med[0, 0],
+                    x=future_x_plot,
+                    y=exp_med[0, 0].astype(float).tolist(),
                     mode="lines",
                     name=f"Expert: {exp_name}",
                     line=dict(color=EXPERT_COLORS.get(exp_name, "#6b7280"), width=1.5, dash="dot"),
@@ -285,16 +303,17 @@ def run_demo(
 
     fig.add_trace(
         go.Scatter(
-            x=future_x,
-            y=med,
+            x=future_x_plot,
+            y=med.astype(float).tolist(),
             mode="lines",
             name="Zitra-Titan-v3 (Median)",
             line=dict(color="#4f46e5", width=3.0),
         )
     )
 
+    mode_str = "Fast Single-Pass" if fast_mode else "Full 4-Expert Pop-Quiz"
     metrics_lines = [
-        f"**Model:** `{DEFAULT_REPO}` *(100% Apache-2.0)*  |  **Series:** `{label}` (`{len(ctx)}` → `{H}`)  |  **Holidays:** {holiday_note}  |  **Inference:** `{latency_ms:.0f} ms`"
+        f"**Model:** `{DEFAULT_REPO}` *(100% Apache-2.0 · {mode_str})*  |  **Series:** `{label}` (`{len(ctx)}` → `{H}`)  |  **Holidays:** {holiday_note}  |  **Inference:** `{latency_ms:.0f} ms`"
     ]
 
     stock_med = None
@@ -326,8 +345,8 @@ def run_demo(
         stock_med = st_out.reshape(H).detach().cpu().numpy()
         fig.add_trace(
             go.Scatter(
-                x=future_x,
-                y=stock_med,
+                x=future_x_plot,
+                y=stock_med.astype(float).tolist(),
                 mode="lines",
                 name="Stock t0-gamma (Apache-2.0)",
                 line=dict(color="#ef4444", width=2.0, dash="dash"),
@@ -338,8 +357,8 @@ def run_demo(
         y_true = truth_df["value"].to_numpy(dtype=np.float64)
         fig.add_trace(
             go.Scatter(
-                x=future_x,
-                y=y_true,
+                x=future_x_plot,
+                y=y_true.astype(float).tolist(),
                 mode="lines+markers",
                 name="Actual Holdout Truth",
                 line=dict(color="#059669", width=2.2),
@@ -371,7 +390,7 @@ def run_demo(
     if routing_summary is not None:
         keys = list(routing_summary.keys())
         names = [EXPERT_LABELS.get(k, k) for k in keys]
-        vals = [routing_summary[k] * 100.0 for k in keys]
+        vals = [float(routing_summary[k]) * 100.0 for k in keys]
         colors = [EXPERT_COLORS.get(k, "#6b7280") for k in keys]
         w_fig.add_trace(
             go.Bar(
@@ -393,12 +412,16 @@ def run_demo(
             yaxis=dict(autorange="reversed"),
         )
 
+    ts_labels = [
+        pd.Timestamp(v).strftime("%Y-%m-%d %H:%M") if isinstance(v, (pd.Timestamp, np.datetime64)) else str(v)
+        for v in future_x
+    ]
     out_df = pd.DataFrame(
         {
-            "timestamp": future_x,
-            "q10": np.round(q10, 4),
-            "median": np.round(med, 4),
-            "q90": np.round(q90, 4),
+            "timestamp": ts_labels,
+            "q10": np.round(q10, 4).astype(float).tolist(),
+            "median": np.round(med, 4).astype(float).tolist(),
+            "q90": np.round(q90, 4).astype(float).tolist(),
         }
     )
     return fig, w_fig, "\n\n".join(metrics_lines), out_df
@@ -437,6 +460,7 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="indigo", neutral_hue="slate"), 
             eval_holdout = gr.Checkbox(value=True, label="Hold out last H points to score live accuracy")
             compare_stock_t0 = gr.Checkbox(value=True, label="Overlay Stock t0-gamma (Apache-2.0) baseline")
             show_experts = gr.Checkbox(value=True, label="Show individual Zitra-v3 expert medians")
+            fast_mode = gr.Checkbox(value=False, label="Fast Mode (single-pass prior blend, skips pop-quiz)")
             run_btn = gr.Button("⚡ Forecast Now", variant="primary", size="lg")
 
         with gr.Column(scale=2):
@@ -448,7 +472,7 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="indigo", neutral_hue="slate"), 
 
     run_btn.click(
         fn=run_demo,
-        inputs=[preset_name, csv_file, country_code, horizon, eval_holdout, compare_stock_t0, show_experts],
+        inputs=[preset_name, csv_file, country_code, horizon, eval_holdout, compare_stock_t0, show_experts, fast_mode],
         outputs=[main_plot, weights_plot, summary_md, out_table],
     )
 

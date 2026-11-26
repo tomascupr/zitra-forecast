@@ -58,7 +58,7 @@ model-index:
 **Zitra-Titan-v3** is the flagship release of **Zitra v3** — a **100% Pure Apache-2.0**, commercially unrestricted probabilistic time-series foundation model bundling **four orthogonal Apache-2.0 architectures** into a single compact **`2.12 GB` `bfloat16`** `safetensors` checkpoint (`3.46 GB` GPU VRAM, `122 ms` on B300, **0 learned router weights**, **zero benchmark overlap**).
 
 - **#1 Pure Apache-2.0 on Official GIFT-Eval (97 / 97 configs):** **`0.6522 MASE / 0.4422 CRPS`** — beats non-commercial `Timestral-209M` (`0.6575 / 0.4460`, `−0.82% / −0.86%`), `t0-gamma` (`0.661 / 0.452`, `−1.33% / −2.17%`), `TimesFM-3` (`0.667 / 0.456`, `−2.22% / −3.03%`), and `Chronos-2` (`0.698 / 0.485`, `−6.56% / −8.82%`).
-- **#1 Pure Apache-2.0 on Official `fev-bench` (100 / 100 tasks):** **`39.05% MASE / 50.18% SQL / 54.52% WQL`** — the **first and only Pure Apache-2.0 model past 50% SQL skill**, beating `t0-gamma` by `+1.06 pp MASE / +0.76 pp SQL`, `TimesFM-3` by `+1.19 pp SQL`, and winning **`51 / 100`** tasks head-to-head on SQL against non-commercial `Timestral-209M`.
+- **#1 Pure Apache-2.0 on Official `fev-bench` (100 / 100 tasks):** **`39.05% MASE / 50.18% SQL / 54.52% WQL`** — the **first and only Pure Apache-2.0 model past 50% SQL skill**, ranking **#6 overall across 55 models** on the official leaderboard ahead of non-commercial `Timestral-209M` (#7) on **both SQL win rate (`80.2%` vs `79.4%`) and MASE win rate (`79.4%` vs `78.7%`)**, and beating `t0-gamma` (`+1.06 pp MASE / +0.76 pp SQL`) and `TimesFM-3` (`+1.19 pp SQL`).
 - **Built-in Public Holiday Covariates (`240+` countries & regional subdivisions):** Pass `country="CZ"`, `"DE-BY"`, `"US-CA"`, etc. to `predict_df()` — no manual holiday engineering required.
 
 [**Live Interactive Demo Space**](https://huggingface.co/spaces/tomcupr/zitra-v3-demo) · [**GitHub SDK (`zitra-forecast`)**](https://github.com/tomascupr/zitra-forecast)
@@ -156,15 +156,36 @@ pred_df = model.predict_df(
 
 ---
 
+## Systems & Inference Engineering
+
+Shipping four heterogeneous foundation architectures in production usually means brittle microservice glue, `4+ GB` of fragmented weights, and `300+ ms` sequential latency. **Zitra-Titan-v3** solves this end-to-end inside a single `2.12 GB` checkpoint:
+
+- **Fused-Batch Single-Pass GPU Execution (`2.6×` speedup: `321 ms → 122 ms`):** Running symmetric sign-averaging (`+x`, `-x`) plus two horizon-matched causal rolling backtests (`bt0`, `bt1`) across four architectures naively triggers `16` sequential forward passes (`321 ms` on B300). `Zitra-Titan-v3` packs `[main, -main, bt0, bt1]` into fused padded GPU batches per active expert — cutting full 4-expert Pop-Quiz latency to **`122.4 ms`** median on B300, with an opt-in single-pass **`fast=True`** mode (**`101.9–115.1 ms`**) for latency-critical serving.
+- **One `2.12 GB` `bfloat16` File, Mixed-Precision Numerical Discipline (`3.46 GB` VRAM):** Compresses all `1,061,831,429` parameters across four distinct model families into a single `model.safetensors` (`2.124 GB` on disk; fits on any `6–8 GB` consumer GPU). At load time, `PatchTST-385M` (30-layer Conformer) hydrates to `fp32` parameters and executes under `torch.amp.autocast("cuda", bfloat16)`, preserving exact `+0.007%` numerical parity with full `fp32` while avoiding `bf16` Conformer weight drift.
+- **Zero Runtime LoRA Overhead (Algebraic Weight Folding + Multi-Seed Souping):** Every post-trained LoRA adapter is algebraically folded into base linear projections (`W' = W + (α/r)BA`) and souped across seeds prior to packaging — delivering full post-training gains with **zero adapter dispatch overhead** at inference time.
+- **Dynamic RoPE `scale_base` Extrapolation (`16,384`-Step Context, Zero Short-Horizon Drift):** `Zitra-t0-256M-Dyn32K` dynamically scales RoPE frequency base by active context length (`scale_base = 512` for `≤8K`, `1536` for `8K–16K`, `2048` for `>16K`), extending known-covariate horizons to `16,384` steps (nearly 2 years of hourly telemetry) without degrading short-context accuracy.
+- **Strict Batch / Singleton Invariance:** Attention-mask isolation (`group_ids`) guarantees a series produces identical predictions whether inferred solo or packed inside a large batch (`max abs diff ≤ 2e-5`, `0.0036%` relative across all 4 experts).
+- **Zero-Compute Regime Gating & Structural Guards:**
+  - *Covariate Gate:* On known-covariate tasks (such as `country="CZ"` public holidays), univariate `PatchTST-385M` is gated to `0.000` and **skipped completely** — saving GPU compute while dedicating 100% weight to covariate-native experts.
+  - *Causal Self-Gated Cross-Learning (`cross_learning="auto"`):* Enables cross-series attention on short univariate panels **only** when it strictly beats independent inference on causal rolling backtests, eliminating negative transfer by construction.
+  - *Monotonic / Cumulative Tail Guard:* Automatically detects cumulative/monotonic series and damps `arcsinh` tail extrapolation before Mixture-CDF inversion.
+- **Exact Piecewise-Linear Mixture-CDF Inversion:** Inverts `F_mix(y) = Σ w_e F_e(y)` directly across the 21-quantile grid (`0.01 … 0.99`) rather than averaging quantiles linearly — ensuring a bounded influence function against outlier experts and calibrated epistemic interval widening when architectures disagree.
+- **Self-Contained Pure Apache-2.0 Packaging:** Vendors minimal Apache-2.0 `iAmTime` T5-MoE inference modules directly inside the checkpoint (`_iamtime/`) with zero non-commercial dependencies and zero custom CUDA extensions required.
+
+---
+
 ## Hardware & Memory Profile
 
-| Metric | Value |
+| Metric | Verified Value |
 |---|---:|
-| Checkpoint on disk (`model.safetensors`, `bfloat16`) | **`2.12 GB`** |
-| GPU VRAM (single series / standard inference) | **`3.46 GB`** *(fits any 6–8 GB GPU)* |
+| Checkpoint on disk (`model.safetensors`, `bfloat16`) | **`2.124 GB`** *(single file, 4 architectures)* |
+| Total parameters / Learned router parameters | **`1,061,831,429`** / **`0`** |
+| GPU VRAM (single series / standard inference) | **`3.46 GB`** *(fits any 6–8 GB consumer GPU)* |
 | GPU VRAM (large batch / `16K` context) | `6–12 GB` |
-| B300 Median Latency — Full 4-Expert Pop-Quiz | **`122 ms`** |
-| B300 Median Latency — Single-Pass `fast=True` | **`102–115 ms`** |
+| B300 Median Latency — Full 4-Expert Pop-Quiz (univariate) | **`122.4 ms`** *(`2.6×` faster than sequential `321 ms`)* |
+| B300 Median Latency — Full Pop-Quiz (known covariates, `H=48`) | **`173.7 ms`** *(PatchTST skipped automatically)* |
+| B300 Median Latency — Single-Pass `fast=True` | **`101.9 ms`** *(cov)* / **`115.1 ms`** *(univariate)* |
+| Singleton vs Batched Invariance (`cross_learning=False`) | **`≤ 2e-5`** max abs diff (`0.0036%` rel) |
 | Context Length | Up to **`16,384`** steps (known covariates) / `8,192` steps (default) |
 | Outputs | Full 21-quantile grid (`0.01 … 0.99`), nonnegative clipping, integer-count snapping |
 

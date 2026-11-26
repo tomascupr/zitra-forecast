@@ -26,7 +26,7 @@ All numbers below come from one frozen checkpoint (`2.124 GB` `model.safetensors
 | *`Timestral-209M`* | *Non-Commercial* | *`0.42 GB`* | *~28 ms* | *`0.6575 / 0.4460`* | *`39.49% / 50.39% / 54.63%`* |
 
 - **Official GIFT-Eval (97 / 97 configs, strictly causal zero-leakage):** **`0.6522 MASE / 0.4422 CRPS`** — beats **`Timestral-209M`** (`−0.82% MASE / −0.86% CRPS`, `−1.61% / −1.34%` ex-Jena), beats **`t0-gamma`** (`−1.33% / −2.17%`), beats **`TimesFM-3`** (`−2.22% / −3.03%`), and beats **`Chronos-2`** (`−6.56% / −8.82%`).
-- **Official `fev-bench` (100 / 100 tasks, strictly per-window zero-leakage):** **`39.05% MASE / 50.18% SQL / 54.52% WQL`** — the **first and only Pure Apache-2.0 model above 50% SQL skill**, beating **`t0-gamma`** by `+1.06 pp MASE / +0.76 pp SQL`, **`TimesFM-3`** by `+1.19 pp SQL`, and winning **`51 / 100`** tasks head-to-head on SQL against non-commercial `Timestral-209M` (within `0.11 pp` WQL / `0.21 pp` SQL overall).
+- **Official `fev-bench` (100 / 100 tasks, strictly per-window zero-leakage):** **`39.05% MASE / 50.18% SQL / 54.52% WQL`** — the **first and only Pure Apache-2.0 model above 50% SQL skill**, ranking **#6 overall across 55 models** on the official leaderboard ahead of non-commercial `Timestral-209M` (#7) on **both SQL win rate (`80.2%` vs `79.4%`) and MASE win rate (`79.4%` vs `78.7%`)**, and beating **`t0-gamma`** (`+1.06 pp MASE / +0.76 pp SQL`) and **`TimesFM-3`** (`+1.19 pp SQL`).
 
 ---
 
@@ -82,11 +82,12 @@ pred_df = model.predict_df(
    - **`Zitra-Chronos2-120M` (`119.5M`, T5 Encoder-Only — Apache-2.0):** Covariate-trained algebraically-folded FullLoRA soup over `Chronos-2`.
    - **`Zitra-PatchTST-385M` (`384.6M`, 30-Block Conformer — Apache-2.0):** Long-history univariate Conformer specialist derived from IBM Granite `PatchTST-FM-r2` (automatically gated to `0.000` on known-covariate tasks).
    - **`iAmTime-302M` (`302.1M`, T5 Encoder-Decoder 4-Expert MoE — Apache-2.0):** Native `arcsinh`-scaled multivariate & covariate MoE expert with vendored Apache-2.0 inference modules.
-2. **Fused-Batch Causal Test-Time Pop-Quiz Routing (`122 ms` on B300 — Zero Router Overfitting):**
-   - Before predicting the future, `Zitra-Titan-v3` runs horizon-matched causal rolling backtests on each series' recent history — packing `[main, -main, bt0, bt1]` into fused GPU passes (`2.6×` faster than sequential replay) — and computes an outlier-proof, median-centered Bayesian posterior with **zero learned router weights**.
-   - Includes **Causal Self-Gated Cross-Inference (`cross_learning="auto"`)** on short univariate panels and an automatic monotonic/cumulative guard for `arcsinh` tails.
+2. **Fused-Batch GPU Pop-Quiz Execution (`2.6×` Speedup: `321 ms → 122 ms` on B300, Zero Router Overfitting):**
+   - Packs `[main, -main, bt0, bt1]` into fused padded GPU passes per active expert (`122.4 ms` full Pop-Quiz, `101.9–115.1 ms` in `fast=True` single-pass mode), with strict attention-mask singleton invariance (`≤ 2e-5` max diff) and **zero learned router weights**.
+   - **Mixed-Precision Load Discipline (`3.46 GB` VRAM):** single `2.124 GB` `bf16` file on disk; hydrates the 30-layer Conformer `PatchTST-385M` to `fp32` + `bf16` autocast for exact `+0.007%` numerical parity, and skips `PatchTST` completely on known-covariate series to save compute.
+   - **Causal Self-Gated Cross-Inference (`cross_learning="auto"`)** on short univariate panels plus an automatic monotonic/cumulative guard for `arcsinh` tails.
 3. **Exact Linear-Pool Mixture-CDF Inversion:**
-   - Inverts `F_mix(y) = Σ w_e F_e(y)` directly at every decile — bounding outlier influence and naturally widening epistemic intervals when experts disagree.
+   - Inverts `F_mix(y) = Σ w_e F_e(y)` directly across all 21 quantiles (`0.01 … 0.99`) — bounding outlier influence and naturally widening epistemic intervals when architectures disagree.
 
 ---
 
