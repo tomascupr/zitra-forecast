@@ -133,14 +133,14 @@ Ranks **#11 / 56 models** across SQL (75.4%), MASE (73.5%), and WQL (73.8%), wit
 
 Outperforms every third-party Apache-2.0 model of any size (including 10× larger `Toto-2.0-2.5B`), beats `Timestral-123M` on both metrics, and beats `Timestral-209M` on MASE (−0.93% MASE / −0.06% CRPS ex-Jena).
 
-<details>
-<summary><b>Real-world enterprise throughput &amp; raw CSVs (Rohlik · Zero-Shot)</b></summary>
+### Real-World Enterprise Proof (Rohlik · Zero-Shot)
 
-- **High-volume SKU &amp; hourly ops (10,859 forecasts):** Forecasts **10,000 daily SKUs in 7.9 s (`1,265 SKUs/sec` on B300)** while staying within **0.5–1.6% WAPE** of `Titan-v3` on SKU and hourly warehouse ops (and beating `Titan-v3` on 28-day SKU MASE `1.260` vs. `1.284` and SQL `1.079` vs. `1.092`).
-- **Public Rohlik Kaggle (`fev-bench` WQL):** Beats `Timestral-209M` across all 4 tasks — Orders 1D (**−6.0%**), Orders 1W (**−5.8%**), Sales 1D (**−4.8%**), Sales 1W (**−13.9%**), edging `Zitra-Titan-v3` on both Orders tasks.
-- **Full benchmark CSVs:** [`gift_eval_results.csv`](gift_eval_results.csv) · [`fev_bench_results.csv`](fev_bench_results.csv).
+![Zero-Shot Rohlik Retail and Fulfillment Benchmarks](https://raw.githubusercontent.com/tomascupr/zitra-forecast/main/assets/rohlik_benchmark.png)
 
-</details>
+- **Public Rohlik Kaggle (`fev-bench`):** Beats `Timestral-209M` across all 4 tasks — Orders 1D/1W (**−6.0% / −5.8%**, ahead of `Zitra-Titan-v3`) and SKU Sales 1D/1W (**−4.8% / −13.9%**).
+- **High-volume SKU & hourly ops (10,859 forecasts):** Forecasts **10,000 daily SKUs in 7.9 s (`1,265 SKUs/s`)** while beating `Timestral-209M` on hourly FC orders (**−3.1% / −2.9%** WQL) and beating both `Timestral-209M` and `Zitra-Titan-v3` on 28-day SKU MASE (`1.260` vs. `1.306` / `1.284`).
+- **Holiday weeks (12 European FCs, 2026 `D+7`):** Built-in `country=` holidays cut `Core-v3` holiday WAPE **14.09% → 10.41%** (matching `Timestral-209M`'s `10.39%`), while [`Zitra-Titan-v3`](https://huggingface.co/tomcupr/Zitra-Titan-v3) drops it further to **7.78%** (**−25.2%**).
+- **Raw benchmark CSVs:** [`gift_eval_results.csv`](gift_eval_results.csv) · [`fev_bench_results.csv`](fev_bench_results.csv).
 
 ---
 

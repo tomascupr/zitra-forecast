@@ -280,7 +280,7 @@ def make_core_benchmarks_chart():
 
 
 def make_rohlik_chart():
-    fig, ax = plt.subplots(figsize=(11.4, 4.8), dpi=220)
+    fig, ax = plt.subplots(figsize=(12.2, 5.1), dpi=220)
     fig.patch.set_facecolor("white")
     _style_ax(ax)
     ax.grid(axis="x", visible=False)
@@ -296,43 +296,43 @@ def make_rohlik_chart():
         "2026 Hourly\nOrders (7d)",
         "2026 Hourly\nPicked (7d)",
     ]
-    vals = [3.88, 5.54, 7.20, 15.42, 25.16, 4.21, 3.70, 0.89]
-    colors = ["#4f46e5", "#4f46e5", "#4f46e5", "#4f46e5", "#10b981", "#6366f1", "#6366f1", "#6366f1"]
+    # Exact verified % error reduction vs. Timestral-209M (positive = lower error than Timestral-209M)
+    titan_vals = [3.88, 5.54, 7.20, 15.42, 25.16, 4.16, 3.66, 0.94]
+    core_vals  = [5.98, 5.75, 4.75, 13.90, -0.19, 3.08, 2.90, 0.28]
 
     x = np.arange(len(categories))
-    bars = ax.bar(x, vals, width=0.56, color=colors, edgecolor="white", linewidth=1.0, zorder=3)
-    ax.axhline(0, color="#334155", linewidth=1.0, zorder=2)
+    w = 0.36
+    bars_t = ax.bar(x - w / 2, titan_vals, width=w, color="#0f172a", edgecolor="white", linewidth=0.9, label="Zitra-Titan-v3 (1.06B · Apache-2.0)", zorder=3)
+    bars_c = ax.bar(x + w / 2, core_vals,  width=w, color="#4f46e5", edgecolor="white", linewidth=0.9, label="Zitra-Core-v3 (256M · Apache-2.0)", zorder=3)
+    ax.axhline(0, color="#334155", linewidth=1.0, zorder=4)
 
-    for bar, v in zip(bars, vals):
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            v + 0.55,
-            f"−{v:.1f}%",
-            ha="center",
-            va="bottom",
-            fontsize=9.4,
-            fontweight="bold",
-            color="#0f172a",
-        )
+    # Subtle vertical dividers & suite headers
+    for xv in (3.5, 4.5):
+        ax.axvline(xv, color="#cbd5e1", linestyle=":", linewidth=1.1, zorder=1)
+    ax.text(1.5, 30.8, "Public Rohlik Kaggle (WQL ↓)", ha="center", va="top", fontsize=8.8, fontweight="bold", color="#475569")
+    ax.text(4.0, 30.8, "Built-In Holidays\n(WAPE ↓)", ha="center", va="top", fontsize=8.4, fontweight="bold", color="#059669")
+    ax.text(6.0, 30.8, "2026 Hourly Fulfillment Ops (WQL ↓)", ha="center", va="top", fontsize=8.8, fontweight="bold", color="#475569")
+
+    for bars, vals, col in [(bars_t, titan_vals, "#0f172a"), (bars_c, core_vals, "#3730a3")]:
+        for bar, v in zip(bars, vals):
+            cx = bar.get_x() + bar.get_width() / 2
+            if v >= 0:
+                ax.text(cx, v + 0.45, f"−{v:.1f}%", ha="center", va="bottom", fontsize=8.3, fontweight="bold", color=col)
+            else:
+                ax.text(cx, v - 0.55, f"+{abs(v):.1f}%", ha="center", va="top", fontsize=8.0, fontweight="bold", color="#64748b")
 
     ax.set_xticks(x)
     ax.set_xticklabels(categories, fontsize=9.0, color="#1e293b")
     ax.set_ylabel("Error Reduction vs. Timestral-209M (%) ↑", fontsize=10, fontweight="bold", color="#334155")
     ax.set_title(
-        "Zero-Shot Retail & Fulfillment Gains — Zitra-Titan-v3 vs. Timestral-209M",
+        "Zero-Shot Retail & Fulfillment Gains — Zitra-Titan-v3 & Zitra-Core-v3 vs. Timestral-209M",
         fontsize=12.4,
         fontweight="bold",
         color="#0f172a",
-        pad=14,
+        pad=26,
     )
-    ax.set_ylim(0, 29.5)
-
-    legend_handles = [
-        Patch(facecolor="#4f46e5", label="Public Rohlik Kaggle (WQL ↓)"),
-        Patch(facecolor="#10b981", label="2026 D+7 Holiday Weeks · Built-in Holidays (WAPE ↓)"),
-        Patch(facecolor="#6366f1", label="2026 Hourly Fulfillment Ops (WQL ↓)"),
-    ]
-    ax.legend(handles=legend_handles, frameon=False, loc="upper left", fontsize=8.8)
+    ax.set_ylim(-2.6, 32.2)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.07), ncol=2, frameon=False, fontsize=9.4)
     plt.tight_layout()
     p = OUT / "rohlik_benchmark.png"
     fig.savefig(p, bbox_inches="tight")
