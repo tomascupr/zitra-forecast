@@ -39,7 +39,7 @@ from zitra import ZitraForecaster, build_holiday_covariates
 HF_ORG = os.environ.get("ZITRA_HF_ORG", "tomcupr")
 MODEL_CHOICES = [
     ("Zitra-Titan-v3 (1.06B · Flagship 4-Arch Pop-Quiz)", f"{HF_ORG}/Zitra-Titan-v3"),
-    ("Zitra-Core-v3 (256M · Fast Distilled · 4× GPU / 10× CPU)", f"{HF_ORG}/Zitra-Core-v3"),
+    ("Zitra-Core-v3 (256M · Fast Distilled · 4× GPU / 11× CPU)", f"{HF_ORG}/Zitra-Core-v3"),
 ]
 DEFAULT_REPO = os.environ.get("ZITRA_V3_REPO", f"{HF_ORG}/Zitra-Titan-v3")
 
@@ -57,7 +57,7 @@ EXPERT_LABELS = {
     "t0": "Zitra-t0-256M-Dyn32K\n(Patch Decoder · Apache-2.0)",
     "chronos2": "Zitra-Chronos2-120M\n(T5 Encoder · Apache-2.0)",
     "patchtst": "Zitra-PatchTST-385M\n(30L Conformer · Apache-2.0)",
-    "iamtime": "iAmTime-302M\n(T5 4-MoE · Apache-2.0)",
+    "iamtime": "Zitra-iAmTime-302M\n(T5 4-MoE · Apache-2.0)",
     "zitra-t0-256m": "Zitra-t0-256M\n(Patch Decoder · Apache-2.0)",
     "zitra-chronos2-120m": "Zitra-Chronos2-120M\n(T5 Encoder · Apache-2.0)",
     "zitra-patchtst-385m": "Zitra-PatchTST-385M\n(30L Conformer · Apache-2.0)",
@@ -425,7 +425,7 @@ def run_demo(
         )
     else:
         w_fig.add_annotation(
-            text="Zitra-Core-v3 runs as one compact 256M distilled model (zero routing overhead · 7× GPU / 11× CPU speedup).",
+            text="Zitra-Core-v3 runs as one compact 256M distilled model (zero routing overhead · 4× GPU / 11× CPU speedup).",
             xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False,
             font=dict(size=13, color="#4f46e5"),
         )

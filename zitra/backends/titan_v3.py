@@ -3,15 +3,16 @@
 Bundles four genuinely orthogonal, 100% Apache-2.0 foundation architectures into a single
 unified safetensors checkpoint (~1.06B total params, ~2.12 GB bf16, 0 learned router weights,
 zero benchmark overlap):
-  0. Zitra-t0-256M-Dyn32K (255.6M, Patch-Decoder Transformer — Apache-2.0, dynamic RoPE 512/1536/2048 up to 32K)
-  1. Zitra-Chronos2-120M  (119.5M, T5 Encoder-Only          — Apache-2.0, covariate-trained FullLoRA)
-  2. Zitra-PatchTST-385M  (384.6M, 30-Block Conformer       — Apache-2.0, univariate long-history specialist)
-  3. Zitra-iAmTime-302M   (302.1M, T5 Enc-Dec 4-Expert MoE  — Apache-2.0, arcsinh + FullLoRA covariates/multivar/trend)
+  0. Zitra-t0-256M-Dyn32K    (255.6M, Patch-Decoder Transformer — Apache-2.0, dynamic RoPE 512/1536/2048 up to 32K)
+  1. Zitra-Chronos2-120M     (119.5M, T5 Encoder-Only          — Apache-2.0, Head-Preserving FullLoRA WiSE-FT)
+  2. Zitra-PatchTST-385M     (384.6M, 30-Block Conformer       — Apache-2.0, Head-Preserving 180-linear FullLoRA)
+  3. Zitra-iAmTime-302M      (302.1M, T5 Enc-Dec 4-Expert MoE  — Apache-2.0, Head-Preserving Encoder FullLoRA WiSE-FT)
 
 Engineering & Routing (Pop-Quiz v3 Fast):
   - Parallel CUDA streams across independent experts (t0, Chronos-2, PatchTST, iAmTime)
-  - Full bf16 autocast across all 4 experts (3-4x faster FlashAttention at 16K-32K)
-  - Fast backtests: symmetric_averaging=True on main forecast, False on internal routing cuts (2x faster backtests)
+  - Precision-adaptive autocast: fp32 TF32 on short / high-offset cumulative series, bf16 FlashAttention on long series
+  - Strictly causal Pop-Quiz 8K vs 16K context gate on long known-covariate series
+  - Fast backtests: symmetric_averaging=True on main forecast, False on internal routing cuts + fused pass batching
   - Optional `fast=True` mode (skips backtests for ~50 ms single-pass serving)
   - Dynamic RoPE scale_base (512 for T<=8192, 1536 for T<=16384, 2048 for T>16384)
   - Outlier-proof median-centered log-loss Bayesian posterior with horizon-matched w_cap (up to 192)
@@ -535,6 +536,7 @@ class ZitraV3Forecaster:
         self.last_routing_weights: np.ndarray | None = None
         self.last_expert_medians: dict[str, np.ndarray] | None = None
         self.last_cross_learning_used: dict[str, bool] = {"t0": False, "chronos2": False}
+        self.last_t0_ctx_16k_frac: float = 0.0
         self._is_cuda = torch.cuda.is_available() and str(self.device).startswith("cuda")
         self._high_vram = False
         self._streams: list[torch.cuda.Stream] | None = None
@@ -583,12 +585,9 @@ class ZitraV3Forecaster:
                         if isinstance(mod, T5LayerNorm):
                             mod.forward = types.MethodType(_fast_t5_ln_forward, mod)
 
-                # 2. Zitra-PatchTST-385M (native bf16 on CUDA saves 760 MB VRAM; vectorized F.fold _overlap_add)
+                # 2. Zitra-PatchTST-385M (fp32 weights + bf16 autocast preserves RevIN/LayerNorm precision; vectorized F.fold _overlap_add)
                 pt_cfg = PatchTSTFMConfig(**json.loads((pkg / "patchtst_config.json").read_text()))
-                pt_sd = {
-                    k[9:]: (f.get_tensor(k) if is_cuda else f.get_tensor(k).float())
-                    for k in keys if k.startswith("patchtst.")
-                }
+                pt_sd = {k[9:]: f.get_tensor(k).float() for k in keys if k.startswith("patchtst.")}
                 pt_model = PatchTSTFMForPrediction(pt_cfg)
                 pt_model.load_state_dict(pt_sd, strict=True, assign=True)
                 del pt_sd
@@ -633,6 +632,24 @@ class ZitraV3Forecaster:
         else:
             self.t0.transformer.rotary_emb.scale_base = 2048.0
 
+    def _t0_use_amp(self, x_tensor: torch.Tensor, t_sl: int) -> bool:
+        if not (self._is_cuda and bool(self.policy.get("t0_bf16_amp", True))):
+            return False
+        bf16_min_t = int(self.policy.get("bf16_min_t", 2048))
+        if t_sl <= bf16_min_t:
+            return False
+        if bool(self.policy.get("t0_high_offset_fp32", True)):
+            fin = torch.isfinite(x_tensor)
+            if fin.any():
+                xf = x_tensor.float().masked_fill(~fin, 0.0)
+                cnt = fin.sum(dim=-1).float().clamp_min(1.0)
+                mu = xf.sum(dim=-1) / cnt
+                abs_mu = xf.abs().sum(dim=-1) / cnt
+                std = ((xf - mu[..., None]).square() * fin.float()).sum(dim=-1).div(cnt).sqrt().clamp_min(1e-6)
+                if float((abs_mu / std).max().item()) > 25.0:
+                    return False
+        return True
+
     @torch.inference_mode()
     def _run_t0(self, x, h, past_cov, known_cov, max_ctx=8192, return_21=False, sym=True):
         B, V, T = x.shape
@@ -646,8 +663,7 @@ class ZitraV3Forecaster:
         q_req = QUANTILES_21 if return_21 else DECILES
         n_q = len(q_req)
         has_cov = (p8 is not None) or (k8 is not None)
-        bf16_min_t = int(self.policy.get("bf16_min_t", 2048))
-        use_amp = self._is_cuda and bool(self.policy.get("t0_bf16_amp", True)) and (t_sl > bf16_min_t)
+        use_amp = self._t0_use_amp(x8, t_sl)
 
         def _exec_t0(x_sub, p_sub, k_sub):
             v_sub = x_sub.shape[1]
@@ -745,8 +761,7 @@ class ZitraV3Forecaster:
         self._set_t0_scale_base(min(T, 8192))
         q_req = QUANTILES_21 if return_21 else DECILES
         n_q = len(q_req)
-        bf16_min_t = int(self.policy.get("bf16_min_t", 2048))
-        use_amp = self._is_cuda and bool(self.policy.get("t0_bf16_amp", True)) and (T > bf16_min_t)
+        use_amp = self._t0_use_amp(x, T)
         parts = []
         with torch.amp.autocast("cuda", dtype=torch.bfloat16, enabled=use_amp):
             for i0 in range(0, B, max_grp):
@@ -771,8 +786,7 @@ class ZitraV3Forecaster:
         if V > 32 or max_ctx > 8192:
             return [self._run_t0(sx, w_bt, None, None, max_ctx=max_ctx, return_21=False, sym=sym) for sx in bt_slices]
         self._set_t0_scale_base(min(bt_slices[0].shape[2], max_ctx))
-        bf16_min_t = int(self.policy.get("bf16_min_t", 2048))
-        use_amp = self._is_cuda and bool(self.policy.get("t0_bf16_amp", True)) and (min(bt_slices[0].shape[2], max_ctx) > bf16_min_t)
+        use_amp = self._t0_use_amp(bt_slices[0], min(bt_slices[0].shape[2], max_ctx))
         blocks = []
         for sx in bt_slices:
             t_len = sx.shape[2]
@@ -788,6 +802,73 @@ class ZitraV3Forecaster:
             out = self.t0.predict(
                 arr.to(device), horizon=w_bt, mask=mask.to(device), group_ids=ids.to(device),
                 quantile_levels=DECILES, trim_leading_missing=True, symmetric_averaging=sym,
+                clip_nonnegative=True, snap_integers=True,
+            ).quantiles.float().reshape(K, B, V, w_bt, 9)
+        return [out[k] for k in range(K)]
+
+    @torch.inference_mode()
+    def _run_t0_fused_bt_cov(self, bt_slices, w_bt, bt_pcs, bt_kcs, max_ctx=8192, sym=False):
+        """Fuse equal-horizon covariate backtest cuts [bt0, bt1] into a single TimeSeries.batch pass."""
+        K = len(bt_slices)
+        B, V = bt_slices[0].shape[:2]
+        device = bt_slices[0].device
+        total_rows = V + (bt_pcs[0].shape[1] if bt_pcs[0] is not None else 0)
+        t_sl_max = max(min(sx.shape[2], int(max_ctx)) for sx in bt_slices)
+        max_b = max(1, (8 if t_sl_max > 16384 else (16 if t_sl_max > 8192 else 64)) // max(1, V))
+        if K < 2 or (total_rows > 32 and V > 24) or (K * B > max_b):
+            return [
+                self._run_t0(bt_slices[ci], w_bt, bt_pcs[ci], bt_kcs[ci], max_ctx=max_ctx, return_21=False, sym=sym)
+                for ci in range(K)
+            ]
+        self._set_t0_scale_base(t_sl_max)
+        use_amp = self._t0_use_amp(bt_slices[-1][..., max(0, bt_slices[-1].shape[2] - t_sl_max):], t_sl_max)
+        blocks = []
+        for ci in range(K):
+            sx, pc, kc = bt_slices[ci], bt_pcs[ci], bt_kcs[ci]
+            t_len = sx.shape[2]
+            t_sl = min(t_len, int(max_ctx))
+            t0_start = t_len - t_sl
+            x8 = sx[..., t0_start:]
+            p8 = pc[..., t0_start:] if pc is not None else None
+            k8 = kc[..., t0_start : t_len + w_bt] if kc is not None else None
+            for i in range(B):
+                row = x8[i]
+                valid = row.isfinite().any(0)
+                if p8 is not None:
+                    valid = valid | p8[i].isfinite().any(0)
+                if k8 is not None:
+                    valid = valid | k8[i, :, :t_sl].isfinite().any(0)
+                ii = torch.where(valid)[0]
+                s = int(ii[0]) if len(ii) else t_sl - 1
+                cl = t_sl - s
+                fc_i = k8[i : i + 1, :, s:].cpu() if k8 is not None else None
+                ts = TimeSeries.from_array(row[None, :, s:].cpu(), future_covariates=fc_i, horizon=w_bt)
+                if p8 is not None:
+                    c_p = p8.shape[1]
+                    w_len = ts.seq_len
+                    p_vals = p8[i, :, s:].cpu()
+                    hist = torch.zeros((c_p, w_len), dtype=torch.float32)
+                    hist[:, :cl] = torch.nan_to_num(p_vals, nan=0.0)
+                    pmask = torch.full((c_p, w_len), MaskType.MISSING, dtype=ts.mask.dtype)
+                    pmask[:, :cl] = torch.where(
+                        torch.isnan(p_vals),
+                        torch.tensor(MaskType.MISSING, dtype=ts.mask.dtype),
+                        torch.tensor(MaskType.VALID, dtype=ts.mask.dtype),
+                    )
+                    ts = TimeSeries(
+                        variates=torch.cat([ts.variates, hist], dim=0),
+                        mask=torch.cat([ts.mask, pmask], dim=0),
+                        group_ids=torch.cat([ts.group_ids, torch.zeros_like(pmask, dtype=ts.group_ids.dtype)], dim=0),
+                        variate_type=torch.cat(
+                            [ts.variate_type, torch.full_like(pmask, VariateType.HISTORICAL, dtype=ts.variate_type.dtype)], dim=0
+                        ),
+                    )
+                blocks.append(ts)
+        batch = TimeSeries.batch(blocks).to(device)
+        with torch.amp.autocast("cuda", dtype=torch.bfloat16, enabled=use_amp):
+            out = self.t0.predict(
+                batch, horizon=w_bt, context_length=batch.seq_len - w_bt, quantile_levels=DECILES,
+                trim_leading_missing=True, symmetric_averaging=sym,
                 clip_nonnegative=True, snap_integers=True,
             ).quantiles.float().reshape(K, B, V, w_bt, 9)
         return [out[k] for k in range(K)]
@@ -1226,12 +1307,18 @@ class ZitraV3Forecaster:
 
         def _do_t0():
             nonlocal q_t0_21, q_t0, bt_t0_list
-            if cuts and (not has_cov) and (not bt_sym) and (H <= max(w_bt + 64, 2 * w_bt)) and (B * V <= 16) and (t0_ctx <= 8192):
+            want_ctx_gate = (
+                bool(cuts)
+                and bool(self.policy.get("t0_causal_ctx_gate", False))
+                and (T > 8192)
+                and (has_known or bool(self.policy.get("t0_ctx_gate_nocov", False)))
+            )
+            self.last_t0_ctx_16k_frac = 1.0 if (not want_ctx_gate and t0_ctx > 8192 and T > 8192) else 0.0
+            if (not want_ctx_gate) and cuts and (not has_cov) and (not bt_sym) and (H <= max(w_bt + 64, 2 * w_bt)) and (B * V <= 16) and (t0_ctx <= 8192):
                 # Single fused forward pass: [main, -main, bt0, bt1] at max(H, w_bt) -> 2.5x faster, exact causal prefix!
                 h_max = max(H, w_bt)
                 self._set_t0_scale_base(min(T, t0_ctx))
-                bf16_min_t = int(self.policy.get("bf16_min_t", 2048))
-                use_amp = self._is_cuda and bool(self.policy.get("t0_bf16_amp", True)) and (min(T, t0_ctx) > bf16_min_t)
+                use_amp = self._t0_use_amp(x[..., max(0, T - min(T, t0_ctx)):], min(T, t0_ctx))
                 blocks = []
                 for sx, sign in [(x, 1.0), (x, -1.0)] + [(bsx, 1.0) for bsx in bt_slices]:
                     tl = sx.shape[2]
@@ -1260,6 +1347,69 @@ class ZitraV3Forecaster:
                     nn_c = _nonneg_mask(bt_slices[ci])
                     qb = torch.where(nn_c[..., None, None], qb.clamp_min(0.0), qb)
                     bt_t0_list.append(torch.sort(qb, dim=-1).values)
+            elif (
+                cuts
+                and bool(self.policy.get("t0_causal_ctx_gate", False))
+                and (T > 8192)
+                and (has_known or bool(self.policy.get("t0_ctx_gate_nocov", False)))
+            ):
+                # Strictly causal 8K(sb=512) vs 16K(sb=1536) Pop-Quiz context gating!
+                ctx_lo = 8192
+                ctx_hi = int(self.policy.get("t0_max_context_known", 16384))
+                ctx_margin = float(self.policy.get("t0_ctx_bt_margin", -0.005))
+                if not has_cov:
+                    bt_8k = self._run_t0_fused_bt_nocov(bt_slices, w_bt, max_ctx=ctx_lo, sym=bt_sym)
+                    bt_16k = self._run_t0_fused_bt_nocov(bt_slices, w_bt, max_ctx=ctx_hi, sym=bt_sym)
+                else:
+                    bt_8k = self._run_t0_fused_bt_cov(bt_slices, w_bt, bt_pcs, bt_kcs, max_ctx=ctx_lo, sym=bt_sym)
+                    bt_16k = self._run_t0_fused_bt_cov(bt_slices, w_bt, bt_pcs, bt_kcs, max_ctx=ctx_hi, sym=bt_sym)
+                q_t_dev = self._q_t.to(device)
+                # Score per batch item b across cuts & variates
+                l8 = torch.zeros(B, device=device, dtype=torch.float32)
+                l16 = torch.zeros(B, device=device, dtype=torch.float32)
+                cnt_b = torch.zeros(B, device=device, dtype=torch.float32)
+                for ci, cut in enumerate(cuts):
+                    yb = x[..., cut : cut + w_bt].reshape(N, w_bt)
+                    s8 = _cutoff_mae_crps(bt_8k[ci].reshape(N, w_bt, 9), yb, sc_t, q_t_dev).reshape(B, V, 3)
+                    s16 = _cutoff_mae_crps(bt_16k[ci].reshape(N, w_bt, 9), yb, sc_t, q_t_dev).reshape(B, V, 3)
+                    ok = (s8[..., 2] * s16[..., 2]) > 0.5
+                    ll8 = (0.5 * (s8[..., 0] + 1e-3).log() + 0.5 * (s8[..., 1] + 1e-3).log()) * ok.float()
+                    ll16 = (0.5 * (s16[..., 0] + 1e-3).log() + 0.5 * (s16[..., 1] + 1e-3).log()) * ok.float()
+                    l8 += ll8.sum(dim=1)
+                    l16 += ll16.sum(dim=1)
+                    cnt_b += ok.float().sum(dim=1)
+                if ctx_margin > 0.0:
+                    use16 = (cnt_b == 0) | ((l16 - l8) / cnt_b.clamp_min(1.0) < ctx_margin)
+                else:
+                    use16 = (cnt_b > 0) & ((l16 - l8) / cnt_b.clamp_min(1.0) < ctx_margin)
+                self.last_t0_ctx_16k_frac = float(use16.float().mean().item())
+                if bool(use16.all().item()):
+                    q_t0_21 = self._run_t0(x, H, past_cov, known_cov, max_ctx=ctx_hi, return_21=True, sym=True)
+                    bt_t0_list = bt_16k
+                elif not bool(use16.any().item()):
+                    q_t0_21 = self._run_t0(x, H, past_cov, known_cov, max_ctx=ctx_lo, return_21=True, sym=True)
+                    bt_t0_list = bt_8k
+                else:
+                    idx16 = torch.where(use16)[0]
+                    idx8 = torch.where(~use16)[0]
+                    q_t0_21 = torch.empty((B, V, H, 21), device=device, dtype=torch.float32)
+                    q_t0_21[idx8] = self._run_t0(
+                        x[idx8], H,
+                        past_cov[idx8] if past_cov is not None else None,
+                        known_cov[idx8] if known_cov is not None else None,
+                        max_ctx=ctx_lo, return_21=True, sym=True,
+                    )
+                    q_t0_21[idx16] = self._run_t0(
+                        x[idx16], H,
+                        past_cov[idx16] if past_cov is not None else None,
+                        known_cov[idx16] if known_cov is not None else None,
+                        max_ctx=ctx_hi, return_21=True, sym=True,
+                    )
+                    bt_t0_list = [
+                        torch.where(use16[:, None, None, None], bt_16k[ci], bt_8k[ci])
+                        for ci in range(len(cuts))
+                    ]
+                q_t0 = q_t0_21[..., DECILE_IDX_21]
             else:
                 q_t0_21 = self._run_t0(x, H, past_cov, known_cov, max_ctx=t0_ctx, return_21=True, sym=True)
                 q_t0 = q_t0_21[..., DECILE_IDX_21]
@@ -1267,10 +1417,7 @@ class ZitraV3Forecaster:
                     if not has_cov:
                         bt_t0_list = self._run_t0_fused_bt_nocov(bt_slices, w_bt, max_ctx=t0_ctx, sym=bt_sym)
                     else:
-                        bt_t0_list = [
-                            self._run_t0(bt_slices[ci], w_bt, bt_pcs[ci], bt_kcs[ci], max_ctx=t0_ctx, return_21=False, sym=bt_sym)
-                            for ci in range(len(cuts))
-                        ]
+                        bt_t0_list = self._run_t0_fused_bt_cov(bt_slices, w_bt, bt_pcs, bt_kcs, max_ctx=t0_ctx, sym=bt_sym)
 
         def _do_ch():
             nonlocal q_ch, bt_ch_list
@@ -1365,6 +1512,8 @@ class ZitraV3Forecaster:
 
         # Independent Per-Expert Causal Pop-Quiz Self-Gated Cross-Inference (short univariate panels, no cov)
         ci_mode = False if fast else (self.policy.get("cross_learning", "auto") if cross_learning is None else cross_learning)
+        ci_short_t = int(self.policy.get("ci_short_t", 0))
+        ci_short_both = bool(self.policy.get("ci_short_both", False))
         ci_max_t = int(self.policy.get("ci_max_t", 1024))
         ci_max_grp = int(self.policy.get("ci_max_group", 64))
         ci_margin = float(self.policy.get("ci_bt_margin", -0.012))
@@ -1380,6 +1529,7 @@ class ZitraV3Forecaster:
                     bt_t0_list = [self._run_t0_ci(sx, w_bt, return_21=False, max_grp=ci_max_grp, sym=bt_sym) for sx in bt_slices]
                     bt_ch_list = [self._run_chronos_ci(sx, w_bt, bt_t0_list[ci], max_grp=ci_max_grp, sym=bt_sym) for ci, sx in enumerate(bt_slices)]
             elif ci_mode == "auto":
+                short_bayesian = (ci_short_t > 0) and (T <= ci_short_t) and (B >= 4)
                 q_t_dev = self._q_t.to(device)
                 if cuts:
                     ci_cuts, ci_w, ci_slices = cuts, w_bt, bt_slices
@@ -1392,7 +1542,35 @@ class ZitraV3Forecaster:
                     ind_ch = [self._safe_fallback(self._run_chronos(ci_slices[0], ci_w, None, None, fallback=None, sym=bt_sym), ind_t0[0])]
                 else:
                     ci_cuts = []
-                if ci_cuts:
+
+                if short_bayesian:
+                    use_t0_ci = True
+                    q_t0_21 = self._run_t0_ci(x, H, return_21=True, max_grp=ci_max_grp, sym=True)
+                    q_t0 = q_t0_21[..., DECILE_IDX_21]
+                    if cuts:
+                        bt_t0_list = [self._run_t0_ci(sx, w_bt, return_21=False, max_grp=ci_max_grp, sym=bt_sym) for sx in bt_slices]
+                    if ci_short_both:
+                        use_ch_ci = True
+                        q_ch = self._run_chronos_ci(x, H, q_t0, max_grp=ci_max_grp, sym=True)
+                        if cuts:
+                            bt_ch_list = [self._run_chronos_ci(sx, w_bt, bt_t0_list[ci], max_grp=ci_max_grp, sym=bt_sym) for ci, sx in enumerate(bt_slices)]
+                    elif ci_cuts:
+                        bt_ch_ci = [self._run_chronos_ci(sx, ci_w, ind_t0[ci], max_grp=ci_max_grp, sym=bt_sym) for ci, sx in enumerate(ci_slices)]
+                        dch_vals = []
+                        for ci, cut in enumerate(ci_cuts):
+                            yb = x[:, 0, cut : cut + ci_w]
+                            si = _cutoff_mae_crps(ind_ch[ci][:, 0], yb, sc_t, q_t_dev)
+                            sc = _cutoff_mae_crps(bt_ch_ci[ci][:, 0], yb, sc_t, q_t_dev)
+                            ok = (si[:, 2] * sc[:, 2]) > 0.5
+                            if ok.any():
+                                li = (0.5 * (si[ok, 0] + 1e-3).log() + 0.5 * (si[ok, 1] + 1e-3).log()).mean().item()
+                                lc = (0.5 * (sc[ok, 0] + 1e-3).log() + 0.5 * (sc[ok, 1] + 1e-3).log()).mean().item()
+                                dch_vals.append(lc - li)
+                        if dch_vals and (float(np.mean(dch_vals)) < ci_margin):
+                            use_ch_ci = True
+                            q_ch = self._run_chronos_ci(x, H, q_t0, max_grp=ci_max_grp, sym=True)
+                            if cuts: bt_ch_list = bt_ch_ci
+                elif ci_cuts:
                     bt_t0_ci = [self._run_t0_ci(sx, ci_w, return_21=False, max_grp=ci_max_grp, sym=bt_sym) for sx in ci_slices]
                     bt_ch_ci = [self._run_chronos_ci(sx, ci_w, bt_t0_ci[ci], max_grp=ci_max_grp, sym=bt_sym) for ci, sx in enumerate(ci_slices)]
                     dt0_vals, dch_vals = [], []

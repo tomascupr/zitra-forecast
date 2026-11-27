@@ -9,4 +9,4 @@ chronos-forecasting>=2.0.0
 granite-tsfm>=0.3.9
 holidays>=0.58
 einops>=0.7.0
-zitra-forecast @ git+https://github.com/tomascupr/zitra-forecast.git@v0.3.2
+zitra-forecast @ git+https://github.com/tomascupr/zitra-forecast.git@v0.3.3

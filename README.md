@@ -1,4 +1,4 @@
-# ⚡ Zitra v3 — #1 Fully Open (Apache-2.0) Zero-Shot Forecasting Models
+# ⚡ Zitra v3 — #1 Fully Open (Apache-2.0) Forecasting Models
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-10b981)](LICENSE)
 [![Titan-v3](https://img.shields.io/badge/🤗%20Flagship-Zitra--Titan--v3-0f172a)](https://huggingface.co/tomcupr/Zitra-Titan-v3)
@@ -9,8 +9,8 @@
 
 | Model | Params | GPU / 8-Core CPU | VRAM | GIFT-Eval (MASE ↓ / CRPS ↓) | `fev-bench` (SQL ↑ / Win ↑) | Best For |
 |---|---:|---:|---:|---|---|---|
-| **[⚡ Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3)** | 1.06B | 68.5 ms / 893 ms | 2.70 GB | **0.6522 / 0.4422** | **50.18%** / **79.7%** (#6) | Flagship accuracy · holiday & capacity planning |
-| **[⚡ Zitra-Core-v3](https://huggingface.co/tomcupr/Zitra-Core-v3)** | **256M** | **17.5 ms / 89 ms** | **1.07 GB** | **0.6551 / 0.4473** | **49.69%** / **75.5%** (#11) | High-throughput SKUs (`1,265/s`) · CPU & edge |
+| **[⚡ Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3)** | 1.06B | 112 ms / 925 ms | 3.5 GB | **0.6523 / 0.4420** | **50.30%** / **80.1%** (#6) | Flagship accuracy · holiday & capacity planning |
+| **[⚡ Zitra-Core-v3](https://huggingface.co/tomcupr/Zitra-Core-v3)** | **256M** | **28 ms / 86 ms** | **1.0 GB** | **0.6551 / 0.4473** | **49.69%** / **75.4%** (#11) | High-throughput SKUs (`1,265/s`) · CPU & edge |
 
 ![Zitra-Core-v3 and Zitra-Titan-v3 Benchmarks](assets/zitra_core_v3_benchmarks.png)
 
@@ -26,7 +26,7 @@ pip install "zitra-forecast @ git+https://github.com/tomascupr/zitra-forecast.gi
 import numpy as np
 from zitra import ZitraForecaster
 
-# Flagship accuracy: "tomcupr/Zitra-Titan-v3"  |  4x faster GPU / 10x CPU: "tomcupr/Zitra-Core-v3"
+# Flagship accuracy: "tomcupr/Zitra-Titan-v3"  |  4x faster GPU / 11x CPU: "tomcupr/Zitra-Core-v3"
 model = ZitraForecaster.from_pretrained("tomcupr/Zitra-Core-v3")
 ctx = np.random.default_rng(42).standard_normal(512).cumsum()
 fc = model.forecast(ctx, prediction_length=96)
@@ -54,24 +54,24 @@ pred_df = model.predict_df(
 
 | Model | License | GIFT MASE ↓ | GIFT CRPS ↓ | fev SQL Win ↑ | fev SQL Skill ↑ | fev Runtime ↓ |
 |---|---|---:|---:|---:|---:|---:|
-| **[⚡ Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3)** *(1.06B)* | **Apache-2.0** | **0.6522** | **0.4422** | **79.7%** (#6) | **50.18%** | 6,764 s |
-| Timestral-209M | *Non-Commercial* | 0.6575 | 0.4460 | 78.8% (#7) | 50.39% | 3,827 s |
-| **[⚡ Zitra-Core-v3](https://huggingface.co/tomcupr/Zitra-Core-v3)** *(256M)* | **Apache-2.0** | **0.6551** | **0.4473** | **75.5%** (#11) | **49.69%** | **1,807 s** |
+| **[⚡ Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3)** *(1.06B)* | **Apache-2.0** | **0.6523** | **0.4420** | **80.1%** (#6) | **50.30%** | 5,719 s |
+| Timestral-209M | Non-Comm. | 0.6575 | 0.4460 | 78.7% (#7) | 50.39% | 3,827 s |
+| **[⚡ Zitra-Core-v3](https://huggingface.co/tomcupr/Zitra-Core-v3)** *(256M)* | **Apache-2.0** | **0.6551** | **0.4473** | **75.4%** (#11) | **49.69%** | **1,807 s** |
 | t0-gamma *(256M)* | Apache-2.0 | 0.6608 | 0.4520 | 72.9% (#13) | 49.42% | 15,862 s |
-| TimesFM-3 | *Non-Commercial* | 0.6668 | 0.4557 | 66.9% (#18) | 48.99% | 8,673 s |
+| TimesFM-3 | Non-Comm. | 0.6668 | 0.4557 | 66.8% (#18) | 48.99% | 8,673 s |
 | Chronos-2 *(120M)* | Apache-2.0 | 0.6978 | 0.4854 | 56.9% (#24) | 47.28% | 2,738 s |
 | Toto-2.0-2.5B *(2.5B)* | Apache-2.0 | 0.6956 | 0.4759 | 55.9% (#25) | 44.42% | 13,835 s |
 
-- **`Zitra-Titan-v3`:** #1 fully open (Apache-2.0) model on both GIFT-Eval (`97/97`) and `fev-bench` (`100/100`), ahead of `Timestral-209M` on GIFT-Eval (`−0.82% / −0.86%`) and `fev-bench` win rate (`79.7%` vs. `78.8%` across 56 models).
-- **`Zitra-Core-v3`:** #1 compact (`256M`) Apache-2.0 model on both leaderboards — beating `t0-gamma` (`−0.87% / −1.04%` GIFT; `+0.27 pp` SQL, `63/100` wins on `fev-bench`), `TimesFM-3`, `Chronos-2`, and `Toto-2.0-2.5B` while running **8.8× faster than `t0-gamma`**, **4.8× faster than `TimesFM-3`**, and **2.1× faster than `Timestral-209M`**.
+- **`Zitra-Titan-v3`:** `#1` fully open (Apache-2.0) model on both GIFT-Eval (`−0.8% / −0.9%` vs. `Timestral-209M`) and `fev-bench` (`#5` WQL win rate `78.9%`, `#6` SQL `80.1%`, `#6` MASE `79.4%` across 56 models — beating `Timestral-209M` on all 78 zero-overlap tasks while running **2.8× faster than `t0-gamma`**, **2.4× faster than `Toto-2.0-2.5B`**, and **1.5× faster than `TimesFM-3`**).
+- **`Zitra-Core-v3`:** `#1` compact (`256M`) Apache-2.0 model on both leaderboards — beating `t0-gamma` (`63/100` `fev-bench` wins), `TimesFM-3`, `Chronos-2`, and `Toto-2.0-2.5B` while running **8.8× faster than `t0-gamma`**, **4.8× faster than `TimesFM-3`**, and **2.1× faster than `Timestral-209M`**.
 
-### Real-World Enterprise Proof (Rohlik · 100% Zero-Shot)
+### Real-World Enterprise Proof (Rohlik · Zero-Shot)
 
 ![Zero-Shot Rohlik Retail and Fulfillment Benchmarks](assets/rohlik_benchmark.png)
 
-- **Holiday weeks (12 European FCs, 2026 `D+7`):** `Zitra-Titan-v3` + built-in `country=` holidays cut overall WAPE **4.62% → 3.88%** and slash 31 holiday weeks **13.58% → 7.81%** (**−24.9%** vs. Timestral-209M's 10.39%).
-- **High-volume SKU & hourly ops (8 tasks, 10,859 forecasts):** `Zitra-Titan-v3` wins **6 / 8** tasks vs. Timestral-209M (**−0.92% WAPE**); `Zitra-Core-v3` forecasts **10,000 SKUs in 7.9 s (`1,265 SKUs/sec`)** within **0.5–1.6% WAPE** of Titan (and beats Titan on 28-day SKU MASE & SQL).
-- **Public Rohlik Kaggle (`fev-bench`):** Both models beat Timestral-209M on all 4 tasks (`Core-v3` WQL: **−6.0% / −5.8%** Orders 1D/1W, **−4.8% / −13.9%** Sales 1D/1W).
+- **Holiday weeks (12 European FCs, 2026 `D+7`):** `Zitra-Titan-v3` + built-in `country=` holidays cut overall WAPE **4.62% → 3.84%** and slash 31 holiday weeks **13.58% → 7.78%** (**−25.2%** vs. `Timestral-209M`'s 10.39%).
+- **High-volume SKU & hourly ops (10,859 forecasts):** `Zitra-Titan-v3` beats `Timestral-209M` on **6 / 8** tasks (`−4.2%` / `−3.7%` on hourly FC orders); `Zitra-Core-v3` forecasts **10,000 SKUs in 7.9 s (`1,265 SKUs/sec`)** within **0.5–1.6% WAPE** of Titan (and beats Titan on 28-day SKU MASE & SQL).
+- **Public Rohlik Kaggle (`fev-bench`):** Both models beat `Timestral-209M` on all 4 tasks (`Titan-v3` WQL: **−3.9% / −5.5%** Orders 1D/1W, **−7.2% / −15.4%** Sales 1D/1W; `Core-v3`: **−6.0% / −5.8%** Orders, **−4.8% / −13.9%** Sales).
 
 ---
 
