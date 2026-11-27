@@ -116,7 +116,7 @@ Every score below comes from this exact frozen checkpoint with strictly causal e
 | 24 | Chronos-2 | Apache-2.0 | 56.9% | 47.28% | 35.50% | 2,738 s |
 | 25 | Toto-2.0-2.5B | Apache-2.0 | 55.9% | 44.42% | 32.54% | 13,835 s |
 
-*First and only standard Apache-2.0 model past **80% SQL win rate** and **50% SQL skill**. Also ranks **#5 / 56 on WQL win rate (78.9%, 54.60% skill)** and **#6 / 56 on MASE win rate (79.4%)**. Outperforms `Timestral-209M` across all **78 zero-overlap tasks** (`−0.16%` SQL), all **29 equal-weight data sources** (`−0.90%` SQL), and all **42 covariate tasks** (`−0.75%` SQL). Ranks #1–#5 on SQL are closed APIs, non-commercial, or non-Apache.*
+First and only standard Apache-2.0 model past **80% SQL win rate** and **50% SQL skill**. Also ranks **#5 / 56 on WQL win rate (78.9%, 54.60% skill)** and **#6 / 56 on MASE win rate (79.4%)**. Outperforms `Timestral-209M` across all **78 zero-overlap tasks** (−0.16% SQL), all **29 equal-weight data sources** (−0.90% SQL), and all **42 covariate tasks** (−0.75% SQL). Ranks #1–#5 on SQL are closed APIs, non-commercial, or non-Apache.
 
 ### Official GIFT-Eval (lower is better ↓)
 
@@ -130,7 +130,7 @@ Every score below comes from this exact frozen checkpoint with strictly causal e
 | Toto-2.0-2.5B | Apache-2.0 | 0.6956 | 0.4759 | **−6.2% / −7.1%** |
 | Chronos-2 | Apache-2.0 | 0.6978 | 0.4854 | **−6.5% / −8.9%** |
 
-*#1 among all zero-shot commercially licensed open-weight models on GIFT-Eval.*
+**#1** among all zero-shot commercially licensed open-weight models on GIFT-Eval.
 
 <details>
 <summary><b>Per-dataset highlights &amp; raw CSVs</b></summary>

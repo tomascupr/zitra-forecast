@@ -115,7 +115,7 @@ Every score below comes from this exact frozen checkpoint with strictly causal e
 | 24 | Chronos-2 | Apache-2.0 | 56.9% | 47.28% | 2,738 s *(1.5×)* |
 | 25 | Toto-2.0-2.5B | Apache-2.0 | 55.9% | 44.42% | 13,835 s *(7.7×)* |
 
-*Ranks **#11 / 56 models** across SQL (75.4%), MASE (73.5%), and WQL (73.8%), with **53.76% WQL skill** and **38.39% MASE skill**. Beats `t0-gamma` on **63 / 100** tasks at **8.8×** throughput. Only our own `Zitra-Titan-v3` ranks higher among Apache-2.0 models.*
+Ranks **#11 / 56 models** across SQL (75.4%), MASE (73.5%), and WQL (73.8%), with **53.76% WQL skill** and **38.39% MASE skill**. Beats `t0-gamma` on **63 / 100** tasks at **8.8×** throughput. Only our own `Zitra-Titan-v3` ranks higher among Apache-2.0 models.
 
 ### Official GIFT-Eval (lower is better ↓)
 
@@ -131,7 +131,7 @@ Every score below comes from this exact frozen checkpoint with strictly causal e
 | Toto-2.0-2.5B | Apache-2.0 | 0.6956 | 0.4759 | **−5.8% / −6.0%** |
 | Chronos-2 | Apache-2.0 | 0.6978 | 0.4854 | **−6.1% / −7.9%** |
 
-*Outperforms every third-party Apache-2.0 model of any size (including 10× larger `Toto-2.0-2.5B`), beats `Timestral-123M` on both metrics, and beats `Timestral-209M` on MASE (`−0.93% MASE / −0.06% CRPS` ex-Jena).*
+Outperforms every third-party Apache-2.0 model of any size (including 10× larger `Toto-2.0-2.5B`), beats `Timestral-123M` on both metrics, and beats `Timestral-209M` on MASE (−0.93% MASE / −0.06% CRPS ex-Jena).
 
 <details>
 <summary><b>Real-world enterprise throughput &amp; raw CSVs (Rohlik · Zero-Shot)</b></summary>
@@ -157,7 +157,7 @@ Measured side-by-side in the same process on **NVIDIA B300 GPU** and **8 CPU cor
 | Batch Throughput *(B300, B=64)* | **872 SKUs/s** | 114 SKUs/s | **7.7× higher** |
 | Full `fev-bench` Runtime *(100 tasks)* | **1,807 s** | 5,719 s | **3.2× faster** |
 
-*`fast=True` trims single-series latency further to **26 ms** GPU and **65 ms** CPU — faster on 8 CPU cores than `Zitra-Titan-v3` on GPU. On large 10K-SKU daily batches, `Zitra-Core-v3` sustains **1,265 SKUs/s**.*
+`fast=True` trims single-series latency further to **26 ms** GPU and **65 ms** CPU — faster on 8 CPU cores than `Zitra-Titan-v3` on GPU. On large 10K-SKU daily batches, `Zitra-Core-v3` sustains **1,265 SKUs/s**.
 
 - **Choose `Zitra-Core-v3`** for CPU-only, serverless, edge deployments, high-volume 100K–1M SKU pipelines, and latency-critical serving.
 - **Choose [`Zitra-Titan-v3`](https://huggingface.co/tomcupr/Zitra-Titan-v3)** for maximum accuracy on high-stakes capacity, energy, and public-holiday planning.
