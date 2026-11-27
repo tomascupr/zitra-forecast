@@ -20,13 +20,18 @@ Engineering & Routing (Pop-Quiz v3 Fast):
 """
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import types
 import numpy as np
 import torch
-from safetensors.torch import load_file
-from transformers import T5Config
+import torch.nn as nn
+import torch.nn.functional as F
+from safetensors import safe_open
+from transformers import PreTrainedModel, T5Config
+from transformers.models.t5.modeling_t5 import T5LayerNorm
 from t0 import MaskType, T0Forecaster, TimeSeries, VariateType, batch_series
 from chronos.chronos2 import Chronos2CoreConfig, Chronos2Model, Chronos2Pipeline
 from tsfm_public.models.patchtst_fm import PatchTSTFMConfig, PatchTSTFMForPrediction
@@ -194,6 +199,283 @@ def mixture_cdf_quantiles(q_exp, w_exp):
     return 0.5 * (lo_t + hi_t)
 
 
+@contextlib.contextmanager
+def _skip_param_init():
+    """Skip random weight initialization on Linear/Conv/Embedding/Norm layers before load_state_dict(assign=True).
+    All non-persistent buffers (RoPE inv_freq, quantiles, patch windows) still initialize natively."""
+    noop = lambda self, *a, **kw: None
+    noop_fn = lambda t, *a, **kw: t
+    patches = [
+        (PreTrainedModel, "_init_weights", noop),
+        (PreTrainedModel, "init_weights", noop),
+        (nn.Linear, "reset_parameters", noop),
+        (nn.Conv1d, "reset_parameters", noop),
+        (nn.Embedding, "reset_parameters", noop),
+        (nn.LayerNorm, "reset_parameters", noop),
+        (nn.init, "kaiming_uniform_", noop_fn),
+        (nn.init, "kaiming_normal_", noop_fn),
+        (nn.init, "xavier_uniform_", noop_fn),
+        (nn.init, "xavier_normal_", noop_fn),
+        (nn.init, "normal_", noop_fn),
+        (nn.init, "uniform_", noop_fn),
+        (nn.init, "trunc_normal_", noop_fn),
+    ]
+    orig = [(obj, attr, getattr(obj, attr)) for obj, attr, _ in patches]
+    try:
+        for obj, attr, repl in patches:
+            setattr(obj, attr, repl)
+        yield
+    finally:
+        for obj, attr, val in orig:
+            setattr(obj, attr, val)
+
+
+def _fast_overlap_add(self, q_pred: torch.Tensor, original_length: int, stride: int) -> torch.Tensor:
+    """Vectorized F.fold replacement for PatchTSTFM._overlap_add (eliminates per-patch Python loop)."""
+    d_patch = self.config.d_patch
+    B, _, Q = q_pred.shape
+    n_patch = (original_length - d_patch) // stride + 1
+    q_patches = q_pred.reshape(B, n_patch, d_patch, Q)
+    win = self.patch_loss_window.to(device=q_pred.device, dtype=q_pred.dtype).view(1, 1, d_patch, 1)
+    q_w = (q_patches * win).permute(0, 3, 2, 1).reshape(B * Q, d_patch, n_patch).contiguous()
+    w_rep = win.view(1, d_patch, 1).expand(1, d_patch, n_patch).contiguous()
+    orig_dtype = q_w.dtype
+    accum = F.fold(q_w.float(), output_size=(1, original_length), kernel_size=(1, d_patch), stride=(1, stride))
+    counts = F.fold(w_rep.float(), output_size=(1, original_length), kernel_size=(1, d_patch), stride=(1, stride))
+    accum = accum.reshape(B, Q, original_length).transpose(1, 2)
+    counts = counts.reshape(1, original_length, 1)
+    return (accum / counts.clamp(min=1e-6)).to(orig_dtype)
+
+
+def _fast_t5_ln_forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+    return F.rms_norm(hidden_states, (hidden_states.shape[-1],), self.weight, self.variance_epsilon)
+
+
+def _patch_iamtime_fast(iam_model: nn.Module) -> None:
+    """Mathematically equivalent runtime speedups for iAmTime encoder:
+    fused RMSNorm, SDPA (scale=1.0), precomputed RoPE/masks across layers, fused ex+q passes, zero H2D mask syncs."""
+    if hasattr(F, "rms_norm"):
+        for mod in iam_model.modules():
+            if isinstance(mod, T5LayerNorm):
+                mod.forward = types.MethodType(_fast_t5_ln_forward, mod)
+
+    def _fast_t5_attn_rope_forward(
+        self, hidden_states, mask, key_value_states=None, past_key_value=None,
+        layer_head_mask=None, use_cache=False, output_attentions=False,
+        cache_position=None, position_ids=None, cos_sin=None,
+    ):
+        batch_size = hidden_states.shape[0]
+        is_cross = key_value_states is not None
+        q = self.q(hidden_states).view(batch_size, -1, self.n_heads, self.key_value_proj_dim).transpose(1, 2)
+        cur = key_value_states if is_cross else hidden_states
+        k = self.k(cur).view(batch_size, -1, self.n_heads, self.key_value_proj_dim).transpose(1, 2)
+        v = self.v(cur).view(batch_size, -1, self.n_heads, self.key_value_proj_dim).transpose(1, 2)
+        if self.use_rope:
+            cos, sin = cos_sin if cos_sin is not None else self.rope_embed(v, position_ids)
+            q, k = RoPE.apply_rotary_pos_emb(q, k, cos, sin, unsqueeze_dim=1)
+        if (layer_head_mask is None) and (not output_attentions) and (past_key_value is None):
+            out = F.scaled_dot_product_attention(
+                q, k, v, attn_mask=mask,
+                dropout_p=self.dropout if self.training else 0.0,
+                is_causal=False, scale=1.0,
+            )
+        else:
+            scores = torch.matmul(q, k.transpose(3, 2)) + mask
+            w = F.softmax(scores.float(), dim=-1).type_as(scores)
+            w = F.dropout(w, p=self.dropout, training=self.training)
+            if layer_head_mask is not None:
+                w = w * layer_head_mask
+            out = torch.matmul(w, v)
+        out = out.transpose(1, 2).contiguous().view(batch_size, -1, self.inner_dim)
+        return (self.o(out), past_key_value)
+
+    def _fast_tok_read(self, Tok, Xflat, allow_mask, tok_valid_mask=None, pre_attn_mask=None, pre_tok_valid_f=None):
+        N, T, d = Tok.shape
+        K = Xflat.shape[1]
+        Qh = self.q_proj(Tok).view(N, T, self.h, self.dk).transpose(1, 2)
+        Kh = self.k_proj(Xflat).view(N, K, self.h, self.dk).transpose(1, 2)
+        Vh = self.v_proj(Xflat).view(N, K, self.h, self.dk).transpose(1, 2)
+        if pre_attn_mask is not None:
+            attn_mask = pre_attn_mask
+        elif allow_mask is None:
+            attn_mask = None
+        else:
+            attn_mask = torch.zeros((N, 1, T, K), device=Tok.device, dtype=Tok.dtype).masked_fill_(
+                ~allow_mask[:, None, :, :], torch.finfo(Tok.dtype).min
+            )
+        out = F.scaled_dot_product_attention(
+            Qh, Kh, Vh, attn_mask=attn_mask,
+            dropout_p=self.dropout if self.training else 0.0, is_causal=False,
+        )
+        out = self.o_proj(out.transpose(1, 2).contiguous().view(N, T, d))
+        if pre_tok_valid_f is not None:
+            out = out * pre_tok_valid_f
+        elif tok_valid_mask is not None:
+            out = out * tok_valid_mask[:, :, None].to(out.dtype)
+        return out
+
+    def _fast_tok_self(self, Tok, mask, pre_attn_mask=None, pre_mask_f=None):
+        N, T, d = Tok.shape
+        Qh = self.q_proj(Tok).view(N, T, self.h, self.dk).transpose(1, 2)
+        Kh = self.k_proj(Tok).view(N, T, self.h, self.dk).transpose(1, 2)
+        Vh = self.v_proj(Tok).view(N, T, self.h, self.dk).transpose(1, 2)
+        if pre_attn_mask is not None:
+            attn_mask = pre_attn_mask
+        else:
+            attn_mask = torch.zeros((N, 1, 1, T), device=Tok.device, dtype=Tok.dtype).masked_fill_(
+                ~mask[:, None, None, :], torch.finfo(Tok.dtype).min
+            )
+        out = F.scaled_dot_product_attention(
+            Qh, Kh, Vh, attn_mask=attn_mask,
+            dropout_p=self.dropout if self.training else 0.0, is_causal=False,
+        )
+        out = self.o_proj(out.transpose(1, 2).contiguous().view(N, T, d))
+        return out * (pre_mask_f if pre_mask_f is not None else mask[:, :, None].to(out.dtype))
+
+    def _fast_cross_ex(self, q_tokens, ex_tokens):
+        B, E, two, d = ex_tokens.shape
+        return self.attn(Tok=q_tokens, Xflat=ex_tokens.reshape(B, E * two, d), allow_mask=None, tok_valid_mask=None)
+
+    for blk in iam_model.encoder.block:
+        blk.time_series_attn.SelfAttention.forward = types.MethodType(
+            _fast_t5_attn_rope_forward, blk.time_series_attn.SelfAttention
+        )
+        blk.example_fusion_attn.SelfAttention.forward = types.MethodType(
+            _fast_t5_attn_rope_forward, blk.example_fusion_attn.SelfAttention
+        )
+        blk.token_read_cross_attn.forward = types.MethodType(_fast_tok_read, blk.token_read_cross_attn)
+        blk.token_self_attn.forward = types.MethodType(_fast_tok_self, blk.token_self_attn)
+        blk.example_fusion_cross_attn.attn.forward = types.MethodType(_fast_tok_read, blk.example_fusion_cross_attn.attn)
+        blk.example_fusion_cross_attn.forward = types.MethodType(_fast_cross_ex, blk.example_fusion_cross_attn)
+
+    orig_stack_forward = iam_model.encoder.forward
+
+    def _fast_stack_forward(
+        self, X_ex, M_ex, Tok_ex, Mtok_ex, allow_ex,
+        X_q, M_q, Tok_q, Mtok_q, allow_q,
+        start_idx: int, mid_idx: int, P_h_q: int, output_attentions: bool = False,
+    ):
+        B, E, Sx, P, d = X_ex.shape
+        _, _, Sq, Pq, _ = X_q.shape
+        if output_attentions or self.training or E == 0 or P != Pq:
+            return orig_stack_forward(
+                X_ex, M_ex, Tok_ex, Mtok_ex, allow_ex,
+                X_q, M_q, Tok_q, Mtok_q, allow_q,
+                start_idx=start_idx, mid_idx=mid_idx, P_h_q=P_h_q, output_attentions=output_attentions,
+            )
+        X_ex = self.dropout(X_ex)
+        X_q = self.dropout(X_q)
+        T = Tok_ex.shape[2]
+        dtype, dev = X_q.dtype, X_q.device
+        fmin = torch.finfo(dtype).min
+
+        def _add_mask_2d(m2d):
+            return torch.zeros((m2d.shape[0], 1, 1, m2d.shape[1]), device=dev, dtype=dtype).masked_fill_(
+                ~m2d[:, None, None, :], fmin
+            )
+
+        Mp_both = torch.cat([M_ex.reshape(B * E * Sx, P).bool(), M_q.reshape(B * Sq, Pq).bool()], dim=0)
+        mask_ts_both = _add_mask_2d(Mp_both)
+        pos_ids = torch.arange(0, P, dtype=torch.long, device=dev).unsqueeze(0)
+        cos_sin = self.block[0].time_series_attn.SelfAttention.rope_embed(X_q, pos_ids)
+
+        Ms = torch.cat([
+            M_ex.permute(0, 3, 1, 2).reshape(B * P, E * Sx).bool(),
+            M_q.squeeze(1).permute(0, 2, 1).reshape(B * P, Sq).bool(),
+        ], dim=1)
+        mask_ef = _add_mask_2d(Ms)
+
+        same_s = (Sx == Sq)
+        Mtok_ex_b = Mtok_ex.reshape(B * E, T).bool()
+        Mtok_q_b = Mtok_q[:, 0, :].bool()
+        Mtok_both_b = torch.cat([Mtok_ex_b, Mtok_q_b], dim=0)
+        mask_tself_both = _add_mask_2d(Mtok_both_b)
+        mtok_both_f = Mtok_both_b[:, :, None].to(dtype)
+
+        if same_s:
+            allow_both = torch.cat([allow_ex, allow_q], dim=0)
+            mask_tread_both = torch.zeros((allow_both.shape[0], 1, T, Sx * P), device=dev, dtype=dtype).masked_fill_(
+                ~allow_both[:, None, :, :], fmin
+            )
+        else:
+            mask_tread_ex = torch.zeros((B * E, 1, T, Sx * P), device=dev, dtype=dtype).masked_fill_(
+                ~allow_ex[:, None, :, :], fmin
+            )
+            mask_tread_q = torch.zeros((B, 1, T, Sq * P), device=dev, dtype=dtype).masked_fill_(
+                ~allow_q[:, None, :, :], fmin
+            )
+            mtok_ex_f = Mtok_ex_b[:, :, None].to(dtype)
+            mtok_q_f = Mtok_q_b[:, :, None].to(dtype)
+
+        n_ex_s, n_q_s, n_ex_b = B * E * Sx, B * Sq, B * E
+
+        for blk in self.block:
+            X_both = torch.cat([X_ex.reshape(n_ex_s, P, d), X_q.reshape(n_q_s, P, d)], dim=0)
+            X_both = X_both + blk.time_series_attn.dropout(
+                blk.time_series_attn.SelfAttention(
+                    blk.time_series_attn.layer_norm(X_both), mask=mask_ts_both, cos_sin=cos_sin
+                )[0]
+            )
+            X_ex = X_both[:n_ex_s].reshape(B, E, Sx, P, d)
+            X_q = X_both[n_ex_s:].reshape(B, 1, Sq, P, d)
+
+            X_ef = torch.cat([
+                X_ex.permute(0, 3, 1, 2, 4).reshape(B * P, E * Sx, d),
+                X_q.squeeze(1).permute(0, 2, 1, 3).reshape(B * P, Sq, d),
+            ], dim=1)
+            X_ef = X_ef + blk.example_fusion_attn.dropout(
+                blk.example_fusion_attn.SelfAttention(blk.example_fusion_attn.layer_norm(X_ef), mask=mask_ef)[0]
+            )
+            X_ex_ef, X_q_ef = X_ef.split([E * Sx, Sq], dim=1)
+            X_ex = X_ex_ef.reshape(B, P, E, Sx, d).permute(0, 2, 3, 1, 4).contiguous()
+            X_q = X_q_ef.reshape(B, P, 1, Sq, d).permute(0, 2, 3, 1, 4).contiguous()
+
+            Tok_both = torch.cat([Tok_ex.reshape(n_ex_b, T, d), Tok_q[:, 0, :, :]], dim=0)
+            if same_s:
+                X_flat_both = torch.cat([X_ex.reshape(n_ex_b, Sx * P, d), X_q.reshape(B, Sq * P, d)], dim=0)
+                Tok_both = Tok_both + blk.token_read_cross_attn(
+                    Tok=blk.ln(Tok_both), Xflat=blk.ln(X_flat_both),
+                    allow_mask=None, pre_attn_mask=mask_tread_both, pre_tok_valid_f=mtok_both_f,
+                )
+            else:
+                te = Tok_both[:n_ex_b] + blk.token_read_cross_attn(
+                    Tok=blk.ln(Tok_both[:n_ex_b]), Xflat=blk.ln(X_ex.reshape(n_ex_b, Sx * P, d)),
+                    allow_mask=None, pre_attn_mask=mask_tread_ex, pre_tok_valid_f=mtok_ex_f,
+                )
+                tq = Tok_both[n_ex_b:] + blk.token_read_cross_attn(
+                    Tok=blk.ln(Tok_both[n_ex_b:]), Xflat=blk.ln(X_q.reshape(B, Sq * P, d)),
+                    allow_mask=None, pre_attn_mask=mask_tread_q, pre_tok_valid_f=mtok_q_f,
+                )
+                Tok_both = torch.cat([te, tq], dim=0)
+
+            Tok_both = Tok_both + blk.token_self_attn(
+                blk.ln(Tok_both), mask=None, pre_attn_mask=mask_tself_both, pre_mask_f=mtok_both_f,
+            )
+            Tok_ex = Tok_both[:n_ex_b].reshape(B, E, T, d)
+            Tok_q_blk = Tok_both[n_ex_b:]
+
+            q_sm = torch.stack([Tok_q_blk[:, start_idx, :], Tok_q_blk[:, mid_idx, :]], dim=1)
+            ex_sm = torch.stack([Tok_ex[:, :, start_idx, :], Tok_ex[:, :, mid_idx, :]], dim=2)
+            q_sm = q_sm + blk.example_fusion_cross_attn(q_tokens=blk.ln(q_sm), ex_tokens=blk.ln(ex_sm))
+            Tok_q_blk[:, start_idx, :] = q_sm[:, 0, :]
+            Tok_q_blk[:, mid_idx, :] = q_sm[:, 1, :]
+            Tok_q = Tok_q_blk.unsqueeze(1)
+
+            X_q = blk.token_write(X_q=X_q, start_token=q_sm[:, 0, :], mid_token=q_sm[:, 1, :], num_hist_patches=P_h_q)
+
+            X_p_both = blk.ffn_patches(torch.cat([X_ex.reshape(n_ex_s, P, d), X_q.reshape(n_q_s, P, d)], dim=0))
+            X_ex = X_p_both[:n_ex_s].reshape(B, E, Sx, P, d)
+            X_q = X_p_both[n_ex_s:].reshape(B, 1, Sq, P, d)
+
+            Tok_f_both = blk.ffn_tokens(torch.cat([Tok_ex.reshape(n_ex_b, T, d), Tok_q_blk], dim=0))
+            Tok_ex = Tok_f_both[:n_ex_b].reshape(B, E, T, d)
+            Tok_q = Tok_f_both[n_ex_b:].unsqueeze(1)
+
+        return self.dropout(self.ln(X_ex)), Tok_ex, self.dropout(self.ln(X_q)), Tok_q
+
+    iam_model.encoder.forward = types.MethodType(_fast_stack_forward, iam_model.encoder)
+
+
 class ZitraV3Forecaster:
     """Self-contained 4-architecture Dynamic-32K Pure Apache-2.0 probabilistic forecaster."""
 
@@ -269,46 +551,74 @@ class ZitraV3Forecaster:
     def from_pretrained(cls, path, device="cuda"):
         pkg = Path(path)
         policy = json.loads((pkg / "policy.json").read_text())
-        sd = load_file(str(pkg / "model.safetensors"))
         is_cuda = str(device).startswith("cuda") and torch.cuda.is_available()
+        dev_str = str(torch.device(device))
+        if is_cuda:
+            torch.set_float32_matmul_precision("high")
 
-        # 0. Zitra-t0-256M-Dyn32K (stored bf16/fp32 -> fp32 weights + bf16 autocast on CUDA for exact precision & 2-4x speed!)
-        t0_cfg = json.loads((pkg / "t0_config.json").read_text())
-        t0_model = T0Forecaster(**t0_cfg)
-        t0_model.load_state_dict({k[3:]: v.float() for k, v in sd.items() if k.startswith("t0.")}, strict=True)
-        t0_model.transformer.rotary_emb.scale_base = 512.0
-        t0_model = t0_model.to(device=device, dtype=torch.float32).eval()
+        with safe_open(str(pkg / "model.safetensors"), framework="pt", device=dev_str) as f:
+            keys = list(f.keys())
+            with _skip_param_init():
+                # 0. Zitra-t0-256M-Dyn32K (fp32 weights: TF32 on T<=2048 for speed & precision, bf16 amp on T>2048)
+                t0_cfg = json.loads((pkg / "t0_config.json").read_text())
+                t0_sd = {k[3:]: f.get_tensor(k).float() for k in keys if k.startswith("t0.")}
+                t0_model = T0Forecaster(**t0_cfg)
+                t0_model.load_state_dict(t0_sd, strict=True, assign=True)
+                del t0_sd
+                t0_model.transformer.rotary_emb.scale_base = 512.0
+                t0_model = t0_model.to(device=device).eval()
 
-        # 1. Zitra-Chronos2-120M (bf16 on CUDA)
-        ch_cfg = Chronos2CoreConfig(**json.loads((pkg / "chronos_config.json").read_text()))
-        ch_model = Chronos2Model(ch_cfg)
-        ch_model.load_state_dict({k[8:]: v for k, v in sd.items() if k.startswith("chronos.")}, strict=True)
-        ch_dtype = torch.bfloat16 if is_cuda else torch.float32
-        ch_model = ch_model.to(device=device, dtype=ch_dtype).eval()
+                # 1. Zitra-Chronos2-120M (native bf16 on CUDA, fp32 on CPU + fused RMSNorm)
+                ch_cfg = Chronos2CoreConfig(**json.loads((pkg / "chronos_config.json").read_text()))
+                ch_sd = {
+                    k[8:]: (f.get_tensor(k) if is_cuda else f.get_tensor(k).float())
+                    for k in keys if k.startswith("chronos.")
+                }
+                ch_model = Chronos2Model(ch_cfg)
+                ch_model.load_state_dict(ch_sd, strict=True, assign=True)
+                del ch_sd
+                ch_model = ch_model.to(device=device).eval()
+                if hasattr(F, "rms_norm"):
+                    for mod in ch_model.modules():
+                        if isinstance(mod, T5LayerNorm):
+                            mod.forward = types.MethodType(_fast_t5_ln_forward, mod)
 
-        # 2. Zitra-PatchTST-385M (stored bf16/fp32 on disk -> fp32 weights + bf16 amp on CUDA)
-        pt_cfg = PatchTSTFMConfig(**json.loads((pkg / "patchtst_config.json").read_text()))
-        pt_model = PatchTSTFMForPrediction(pt_cfg)
-        pt_model.load_state_dict({k[9:]: v.float() for k, v in sd.items() if k.startswith("patchtst.")}, strict=True)
-        pt_model = pt_model.to(device=device, dtype=torch.float32).eval()
+                # 2. Zitra-PatchTST-385M (native bf16 on CUDA saves 760 MB VRAM; vectorized F.fold _overlap_add)
+                pt_cfg = PatchTSTFMConfig(**json.loads((pkg / "patchtst_config.json").read_text()))
+                pt_sd = {
+                    k[9:]: (f.get_tensor(k) if is_cuda else f.get_tensor(k).float())
+                    for k in keys if k.startswith("patchtst.")
+                }
+                pt_model = PatchTSTFMForPrediction(pt_cfg)
+                pt_model.load_state_dict(pt_sd, strict=True, assign=True)
+                del pt_sd
+                pt_model = pt_model.to(device=device).eval()
+                if hasattr(pt_model, "backbone") and hasattr(pt_model.backbone, "_overlap_add"):
+                    pt_model.backbone._overlap_add = types.MethodType(_fast_overlap_add, pt_model.backbone)
 
-        # 3. Zitra-iAmTime-302M (bf16 on CUDA; explicit RoPE.inv_freq & quantiles buffer restore for transformers 4.x & 5.x)
-        iam_cfg = T5Config.from_dict(json.loads((pkg / "iamtime_config.json").read_text()))
-        iam_model = iAmTimeModel(iam_cfg)
-        iam_model.load_state_dict({k[8:]: v for k, v in sd.items() if k.startswith("iamtime.")}, strict=True)
-        iam_dtype = torch.bfloat16 if is_cuda else torch.float32
-        iam_model = iam_model.to(device=device, dtype=iam_dtype).eval()
-        for mod in iam_model.modules():
-            if isinstance(mod, RoPE):
-                inv_freq = 1.0 / (
-                    mod.base ** (torch.arange(0, mod.dim, 2, dtype=torch.int64, device=device).float() / mod.dim)
+                # 3. Zitra-iAmTime-302M (native bf16 on CUDA + fused encoder stack & explicit RoPE/quantiles restore)
+                iam_cfg = T5Config.from_dict(json.loads((pkg / "iamtime_config.json").read_text()))
+                iam_sd = {
+                    k[8:]: (f.get_tensor(k) if is_cuda else f.get_tensor(k).float())
+                    for k in keys if k.startswith("iamtime.")
+                }
+                iam_model = iAmTimeModel(iam_cfg)
+                iam_model.load_state_dict(iam_sd, strict=True, assign=True)
+                del iam_sd
+                iam_dtype = torch.bfloat16 if is_cuda else torch.float32
+                iam_model = iam_model.to(device=device).eval()
+                for mod in iam_model.modules():
+                    if isinstance(mod, RoPE):
+                        inv_freq = 1.0 / (
+                            mod.base ** (torch.arange(0, mod.dim, 2, dtype=torch.int64, device=device).float() / mod.dim)
+                        )
+                        mod.register_buffer("inv_freq", inv_freq, persistent=False)
+                iam_model.register_buffer(
+                    "quantiles",
+                    torch.tensor(iam_model.iamtime_config.quantiles, device=device, dtype=iam_dtype),
+                    persistent=False,
                 )
-                mod.register_buffer("inv_freq", inv_freq, persistent=False)
-        iam_model.register_buffer(
-            "quantiles",
-            torch.tensor(iam_model.iamtime_config.quantiles, device=device, dtype=iam_dtype),
-            persistent=False,
-        )
+                _patch_iamtime_fast(iam_model)
 
         return cls(t0_model, Chronos2Pipeline(ch_model), pt_model, iAmTimePipeline(iam_model), policy=policy)
 
@@ -336,7 +646,8 @@ class ZitraV3Forecaster:
         q_req = QUANTILES_21 if return_21 else DECILES
         n_q = len(q_req)
         has_cov = (p8 is not None) or (k8 is not None)
-        use_amp = self._is_cuda and bool(self.policy.get("t0_bf16_amp", True))
+        bf16_min_t = int(self.policy.get("bf16_min_t", 2048))
+        use_amp = self._is_cuda and bool(self.policy.get("t0_bf16_amp", True)) and (t_sl > bf16_min_t)
 
         def _exec_t0(x_sub, p_sub, k_sub):
             v_sub = x_sub.shape[1]
@@ -434,7 +745,8 @@ class ZitraV3Forecaster:
         self._set_t0_scale_base(min(T, 8192))
         q_req = QUANTILES_21 if return_21 else DECILES
         n_q = len(q_req)
-        use_amp = self._is_cuda and bool(self.policy.get("t0_bf16_amp", True))
+        bf16_min_t = int(self.policy.get("bf16_min_t", 2048))
+        use_amp = self._is_cuda and bool(self.policy.get("t0_bf16_amp", True)) and (T > bf16_min_t)
         parts = []
         with torch.amp.autocast("cuda", dtype=torch.bfloat16, enabled=use_amp):
             for i0 in range(0, B, max_grp):
@@ -459,7 +771,8 @@ class ZitraV3Forecaster:
         if V > 32 or max_ctx > 8192:
             return [self._run_t0(sx, w_bt, None, None, max_ctx=max_ctx, return_21=False, sym=sym) for sx in bt_slices]
         self._set_t0_scale_base(min(bt_slices[0].shape[2], max_ctx))
-        use_amp = self._is_cuda and bool(self.policy.get("t0_bf16_amp", True))
+        bf16_min_t = int(self.policy.get("bf16_min_t", 2048))
+        use_amp = self._is_cuda and bool(self.policy.get("t0_bf16_amp", True)) and (min(bt_slices[0].shape[2], max_ctx) > bf16_min_t)
         blocks = []
         for sx in bt_slices:
             t_len = sx.shape[2]
@@ -632,7 +945,7 @@ class ZitraV3Forecaster:
         N = B * V
         device = slices_x[0].device
         pt_dtype = next(self.patchtst.parameters()).dtype
-        use_amp = self._is_cuda
+        use_amp = self._is_cuda and (pt_dtype == torch.float32)
         ch_bs_base = 64 if self._high_vram else 16
         ch_bs_big = 32 if self._high_vram else 8
 
@@ -917,7 +1230,8 @@ class ZitraV3Forecaster:
                 # Single fused forward pass: [main, -main, bt0, bt1] at max(H, w_bt) -> 2.5x faster, exact causal prefix!
                 h_max = max(H, w_bt)
                 self._set_t0_scale_base(min(T, t0_ctx))
-                use_amp = self._is_cuda and bool(self.policy.get("t0_bf16_amp", True))
+                bf16_min_t = int(self.policy.get("bf16_min_t", 2048))
+                use_amp = self._is_cuda and bool(self.policy.get("t0_bf16_amp", True)) and (min(T, t0_ctx) > bf16_min_t)
                 blocks = []
                 for sx, sign in [(x, 1.0), (x, -1.0)] + [(bsx, 1.0) for bsx in bt_slices]:
                     tl = sx.shape[2]

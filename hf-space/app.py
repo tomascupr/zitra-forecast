@@ -39,7 +39,7 @@ from zitra import ZitraForecaster, build_holiday_covariates
 HF_ORG = os.environ.get("ZITRA_HF_ORG", "tomcupr")
 MODEL_CHOICES = [
     ("Zitra-Titan-v3 (1.06B · Flagship 4-Arch Pop-Quiz)", f"{HF_ORG}/Zitra-Titan-v3"),
-    ("Zitra-Core-v3 (256M · Fast Distilled · 7× GPU / 11× CPU)", f"{HF_ORG}/Zitra-Core-v3"),
+    ("Zitra-Core-v3 (256M · Fast Distilled · 4× GPU / 10× CPU)", f"{HF_ORG}/Zitra-Core-v3"),
 ]
 DEFAULT_REPO = os.environ.get("ZITRA_V3_REPO", f"{HF_ORG}/Zitra-Titan-v3")
 

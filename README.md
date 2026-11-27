@@ -9,8 +9,8 @@
 
 | Model | Params | GPU / 8-Core CPU | VRAM | GIFT-Eval (MASE ↓ / CRPS ↓) | `fev-bench` (SQL ↑ / Win ↑) | Best For |
 |---|---:|---:|---:|---|---|---|
-| **[⚡ Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3)** | 1.06B | 122 ms / 952 ms | 3.46 GB | **0.6522 / 0.4422** | **50.18%** / **79.7%** (#6) | Flagship accuracy · holiday & capacity planning |
-| **[⚡ Zitra-Core-v3](https://huggingface.co/tomcupr/Zitra-Core-v3)** | **256M** | **17.5 ms / 87 ms** | **1.07 GB** | **0.6551 / 0.4473** | **49.69%** / **75.5%** (#11) | High-throughput SKUs (`1,265/s`) · CPU & edge |
+| **[⚡ Zitra-Titan-v3](https://huggingface.co/tomcupr/Zitra-Titan-v3)** | 1.06B | 68.5 ms / 893 ms | 2.70 GB | **0.6522 / 0.4422** | **50.18%** / **79.7%** (#6) | Flagship accuracy · holiday & capacity planning |
+| **[⚡ Zitra-Core-v3](https://huggingface.co/tomcupr/Zitra-Core-v3)** | **256M** | **17.5 ms / 89 ms** | **1.07 GB** | **0.6551 / 0.4473** | **49.69%** / **75.5%** (#11) | High-throughput SKUs (`1,265/s`) · CPU & edge |
 
 ![Zitra-Core-v3 and Zitra-Titan-v3 Benchmarks](assets/zitra_core_v3_benchmarks.png)
 
@@ -26,7 +26,7 @@ pip install "zitra-forecast @ git+https://github.com/tomascupr/zitra-forecast.gi
 import numpy as np
 from zitra import ZitraForecaster
 
-# Flagship accuracy: "tomcupr/Zitra-Titan-v3"  |  7x faster / CPU: "tomcupr/Zitra-Core-v3"
+# Flagship accuracy: "tomcupr/Zitra-Titan-v3"  |  4x faster GPU / 10x CPU: "tomcupr/Zitra-Core-v3"
 model = ZitraForecaster.from_pretrained("tomcupr/Zitra-Core-v3")
 ctx = np.random.default_rng(42).standard_normal(512).cumsum()
 fc = model.forecast(ctx, prediction_length=96)
@@ -70,7 +70,7 @@ pred_df = model.predict_df(
 ![Zero-Shot Rohlik Retail and Fulfillment Benchmarks](assets/rohlik_benchmark.png)
 
 - **Holiday weeks (12 European FCs, 2026 `D+7`):** `Zitra-Titan-v3` + built-in `country=` holidays cut overall WAPE **4.62% → 3.88%** and slash 31 holiday weeks **13.58% → 7.81%** (**−24.9%** vs. Timestral-209M's 10.39%).
-- **High-volume SKU & hourly ops (8 tasks, 10,859 forecasts):** `Zitra-Titan-v3` wins **6 / 8** tasks vs. Timestral-209M (**−0.92% WAPE**); `Zitra-Core-v3` forecasts **10,000 SKUs in 7.9 s (`1,265 SKUs/sec`, `16.8×` faster)** within **0.5–1.6% WAPE** of Titan (and beats Titan on 28-day SKU MASE & SQL).
+- **High-volume SKU & hourly ops (8 tasks, 10,859 forecasts):** `Zitra-Titan-v3` wins **6 / 8** tasks vs. Timestral-209M (**−0.92% WAPE**); `Zitra-Core-v3` forecasts **10,000 SKUs in 7.9 s (`1,265 SKUs/sec`)** within **0.5–1.6% WAPE** of Titan (and beats Titan on 28-day SKU MASE & SQL).
 - **Public Rohlik Kaggle (`fev-bench`):** Both models beat Timestral-209M on all 4 tasks (`Core-v3` WQL: **−6.0% / −5.8%** Orders 1D/1W, **−4.8% / −13.9%** Sales 1D/1W).
 
 ---

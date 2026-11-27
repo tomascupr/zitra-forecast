@@ -55,7 +55,7 @@ model-index:
 
 # ⚡ Zitra-Core-v3
 
-**#1 Compact (256M) Fully Open (Apache-2.0) Time-Series Foundation Model** — outperforming `t0-gamma`, `TimesFM-3`, `Chronos-2`, and `Toto-2.0-2.5B` across both **GIFT-Eval** and **`fev-bench`**, at **8.8× the throughput of `t0-gamma`** (**17.5 ms** GPU · **87 ms** CPU).
+**#1 Compact (256M) Fully Open (Apache-2.0) Time-Series Foundation Model** — outperforming `t0-gamma`, `TimesFM-3`, `Chronos-2`, and `Toto-2.0-2.5B` across both **GIFT-Eval** and **`fev-bench`**, at **8.8× the throughput of `t0-gamma`** (**17.5 ms** GPU · **89 ms** CPU).
 
 Distilled from our flagship [`Zitra-Titan-v3`](https://huggingface.co/tomcupr/Zitra-Titan-v3), `Zitra-Core-v3` also runs **4.8× faster than `TimesFM-3`**, **2.1× faster than `Timestral-209M`**, and **1.5× faster than `Chronos-2`** — in just **1.07 GB VRAM** with built-in public holidays for 240+ countries.
 
@@ -77,7 +77,7 @@ from zitra import ZitraForecaster
 
 model = ZitraForecaster.from_pretrained("tomcupr/Zitra-Core-v3")
 ctx = np.random.default_rng(42).standard_normal(512).cumsum()
-fc = model.forecast(ctx, prediction_length=96)  # 17.5 ms GPU · 87 ms CPU
+fc = model.forecast(ctx, prediction_length=96)  # 17.5 ms GPU · 89 ms CPU
 
 median, q10, q90 = fc.median, fc.quantile(0.1), fc.quantile(0.9)
 ```
@@ -136,7 +136,7 @@ Every number below comes from this single frozen checkpoint with strictly causal
 <details>
 <summary><b>Real-world enterprise throughput &amp; raw CSVs (Rohlik · 100% Zero-Shot)</b></summary>
 
-- **High-volume SKU &amp; hourly ops (8 tasks, 10,859 forecasts):** Forecasts **10,000 daily SKUs in 7.9 s (`1,265 SKUs/sec` on B300 — `16.8×` faster than `Zitra-Titan-v3`)** while staying within **0.5–1.6% WAPE** of `Titan-v3` on SKU and hourly warehouse ops (and beating `Titan-v3` on 28-day SKU MASE `1.260` vs. `1.287` and SQL `1.079` vs. `1.094`).
+- **High-volume SKU &amp; hourly ops (8 tasks, 10,859 forecasts):** Forecasts **10,000 daily SKUs in 7.9 s (`1,265 SKUs/sec` on B300)** while staying within **0.5–1.6% WAPE** of `Titan-v3` on SKU and hourly warehouse ops (and beating `Titan-v3` on 28-day SKU MASE `1.260` vs. `1.287` and SQL `1.079` vs. `1.094`).
 - **Public Rohlik Kaggle (`fev-bench` WQL):** Cuts error vs. `Timestral-209M` across all 4 tasks — Orders 1D (**−5.98%**), Orders 1W (**−5.75%**), Sales 1D (**−4.75%**), Sales 1W (**−13.90%**), edging `Zitra-Titan-v3` on both Orders tasks.
 - **Full benchmark CSVs:** [`gift_eval_results.csv`](gift_eval_results.csv) · [`fev_bench_results.csv`](fev_bench_results.csv).
 
@@ -146,18 +146,17 @@ Every number below comes from this single frozen checkpoint with strictly causal
 
 ## Speed, Hardware & When to Choose Core vs. Titan
 
-Measured directly on **NVIDIA B300 GPU** and **8 CPU threads (Intel Xeon 6776P, `fp32`, no GPU)**:
+Measured side-by-side in the same process on **NVIDIA B300 GPU** and **8 CPU threads (Intel Xeon 6776P, `fp32`, no GPU)** (`zitra-forecast v0.3.2`):
 
-| Benchmark | Zitra-Core-v3 | Zitra-Titan-v3 | Speedup |
+| Benchmark | Zitra-Core-v3 | Zitra-Titan-v3 | Core-v3 Advantage |
 |---|---:|---:|---:|
-| GPU Latency *(B300)* | **17.5 ms** | 122 ms | **7.0×** |
-| GPU Latency *(Known Covariates)* | **35.6 ms** | 174 ms | **4.9×** |
-| CPU Latency *(8 cores)* | **87 ms** | 952 ms | **11×** |
-| CPU Cold Load | **1.8 s** | 9.8 s | **5.4×** |
-| GPU VRAM / CPU RAM | **1.1 / 1.2 GB** | 3.5 / 4.3 GB | **3.3× smaller** |
-| Batch Throughput *(B300)* | **1,265 SKUs/s** | 75 SKUs/s | **16.8×** |
+| GPU Latency *(B300)* | **17.5 ms** | 68.5 ms | **3.9× faster** |
+| GPU Latency *(Known Covariates)* | **35.0 ms** | 138 ms | **4.0× faster** |
+| CPU Latency *(8 cores)* | **89 ms** | 893 ms | **10.0× faster** |
+| GPU VRAM / CPU RAM | **1.1 / 1.2 GB** | 2.7 / 4.3 GB | **2.5–3.6× smaller** |
+| Batch Throughput *(B300, B=64)* | **690 SKUs/s** | 130 SKUs/s | **5.3× higher** |
 
-*`fast=True` trims single-series latency further to **15.9 ms** GPU and **69 ms** CPU. At **87 ms** on CPU, `Zitra-Core-v3` runs faster on CPU than `Zitra-Titan-v3` runs on GPU.*
+*`fast=True` trims single-series latency further to **15.9 ms** GPU and **68.9 ms** CPU — matching `Zitra-Titan-v3`'s GPU latency (`68.5 ms`) on CPU alone. On large 10K-SKU daily batches, `Zitra-Core-v3` sustains **1,265 SKUs/s**.*
 
 - **Choose `Zitra-Core-v3`** for CPU-only / serverless / edge deployments, high-volume 100K–1M SKU pipelines, and latency-critical real-time serving.
 - **Choose [`Zitra-Titan-v3`](https://huggingface.co/tomcupr/Zitra-Titan-v3)** for maximum accuracy on high-stakes capacity, energy, and public-holiday planning where 4-architecture Pop-Quiz routing gives the final edge.

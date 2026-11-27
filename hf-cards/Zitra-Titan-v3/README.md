@@ -57,7 +57,7 @@ model-index:
 
 **#1 Fully Open (Apache-2.0) Zero-Shot Time-Series Foundation Model** across both **Official GIFT-Eval (97 configs)** and **`fev-bench` (100 tasks)**.
 
-**2.12 GB single file** · **3.46 GB GPU VRAM** *(any 6–8 GB GPU)* · **122 ms latency** *(B300)* · **Built-in public holidays for 240+ countries**
+**2.12 GB single file** · **2.70 GB GPU VRAM** *(any 4–6 GB GPU)* · **68.5 ms latency** *(B300)* · **Built-in public holidays for 240+ countries**
 
 [**Live Demo Space**](https://huggingface.co/spaces/tomcupr/zitra-v3-demo) · [**Compact `Zitra-Core-v3` (256M · 7× Faster)**](https://huggingface.co/tomcupr/Zitra-Core-v3) · [**GitHub SDK (`zitra-forecast`)**](https://github.com/tomascupr/zitra-forecast) · [**GIFT-Eval CSV**](gift_eval_results.csv) · [**fev-bench CSV**](fev_bench_results.csv)
 
@@ -160,8 +160,8 @@ Zitra-Titan-v3 unifies **four genuinely orthogonal Apache-2.0 foundation archite
 
 **Engineering highlights:**
 
-- **Fused-Batch Pop-Quiz Execution (`2.6×` speedup: 321 ms → 122 ms):** Packs symmetric sign-averaging (`+x`, `-x`) and two causal rolling backtests (`bt0`, `bt1`) into fused padded GPU passes per expert — zero learned router weights, zero benchmark overfitting, plus opt-in single-pass `fast=True` (102–115 ms).
-- **Single `2.12 GB` `bfloat16` File + Mixed-Precision Conformer Hydration:** Compresses all 1.06B params into one `safetensors` file (3.46 GB VRAM). At load time, 30-layer Conformer `PatchTST` hydrates to `fp32` under `bf16` autocast for exact **+0.007%** FP32 parity without `bf16` weight drift.
+- **Fused-Batch Pop-Quiz & Zero-Overhead Runtime (`4.7×` total speedup: 321 ms → 68.5 ms):** Packs symmetric sign-averaging (`+x`, `-x`) and two causal rolling backtests (`bt0`, `bt1`) into fused padded GPU passes per expert, replaces `PatchTST`'s per-patch overlap-add loop with vectorized `F.fold` (`2.6×` faster), and fuses `iAmTime`'s 12-layer encoder with `F.rms_norm`, SDPA, precomputed masks/RoPE, and merged example+query passes (`2.7×` faster) — zero learned router weights, plus opt-in single-pass `fast=True` (`63.5 ms`).
+- **Single `2.12 GB` `bfloat16` File + Instant Streaming Load (`11×` faster cold load):** Streams all 1.06B params directly from one `safetensors` file without random weight initialization (**`1.6 s`** GPU / **`0.8–1.1 s`** CPU cold load, **`2.70 GB`** VRAM loaded). Runs `PatchTST`, `Chronos-2`, and `iAmTime` in native `bf16` on CUDA and `t0` in TF32 `fp32` for `T ≤ 2,048` (`bf16` FlashAttention for `T > 2,048`).
 - **Zero Runtime LoRA Overhead + 16K Dynamic RoPE:** All post-trained LoRAs are algebraically folded (`W' = W + (α/r)BA`) and souped across seeds. Dynamic RoPE `scale_base` (512 / 1536 / 2048) extends covariate context to **16,384 steps** with zero short-horizon drift.
 - **Zero-Compute Covariate Gating & Structural Guards:** Skips `PatchTST` entirely when known covariates are present, enables cross-series attention only when it beats independent causal backtests (`cross_learning="auto"`), and guards monotonic/cumulative `arcsinh` tails.
 - **Exact Mixture-CDF Inversion & Strict Batch Invariance:** Inverts `F_mix(y) = Σ w_e F_e(y)` directly across 21 quantiles for outlier-proof uncertainty, with attention-mask isolation guaranteeing **≤ 2e-5** max diff solo vs. batched.
@@ -172,9 +172,10 @@ Zitra-Titan-v3 unifies **four genuinely orthogonal Apache-2.0 foundation archite
 |---|---|---|
 | **Checkpoint** | **2.12 GB** | Single `bfloat16` `safetensors` file (all 4 experts) |
 | **Parameters** | **1.06B** | 1,061,831,429 total · 0 learned router parameters |
-| **GPU VRAM** | **3.46 GB** | Standard inference *(fits any 6–8 GB GPU; 6–12 GB for 16K batches)* |
-| **Pop-Quiz** | **122 ms** | B300 univariate median · 174 ms known covariates (H=48) |
-| **Fast mode** | **102 ms** | B300 single-pass (`fast=True`: 102 ms cov · 115 ms univ) |
+| **GPU VRAM** | **2.70 GB** | Standard inference *(fits any 4–6 GB GPU; 6–10 GB for 16K batches)* |
+| **Cold Load** | **1.6 s / 1.1 s** | Warm-cache GPU / 8-core CPU load *(streaming `safetensors`, zero random init)* |
+| **Pop-Quiz** | **68.5 ms** | B300 univariate median · 138 ms known covariates · 893 ms 8-core CPU |
+| **Fast mode** | **63.5 ms** | B300 single-pass (`fast=True`) · 524 ms 8-core CPU |
 | **Max context** | **16,384** | Dynamic RoPE (8,192 default) · 21 quantiles (0.01–0.99 grid) |
 
 ---

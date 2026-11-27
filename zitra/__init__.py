@@ -3,7 +3,7 @@
 from .forecaster import ZitraForecast, ZitraForecaster
 from .holidays import HOLIDAY_COVARIATE_NAMES, build_holiday_covariates
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 __all__ = [
     "ZitraForecaster",
     "ZitraForecast",
